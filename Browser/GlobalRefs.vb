@@ -20,6 +20,7 @@ Public Module GlobalRefs
     Public Const URL_FoldingCoinDiscordInvite As String = "https://discord.gg/CvZ7gAs"
     Public Const URL_FoldingCoinDiscordRegister As String = "https://discordapp.com/register?redirect_to=%2Finvite%2FCvZ7gAs"
     Public Const URL_FoldingCoinDiscord As String = "https://discordapp.com/channels/379168590626029568/379168590626029571"
+    Public Const URL_FoldingCoinShop As String = "https://tokenmarkets.com/catalog/foldingcoin"
 
     Public Const URL_CureCoin As String = "https://curecoin.net/"
     Public Const URL_CureCoinTwitter As String = "https://twitter.com/CureCoin_Team/"
@@ -32,9 +33,9 @@ Public Module GlobalRefs
     Public Const URL_EOC As String = "http://folding.extremeoverclocking.com/user_summary.php?s=&u="
     Public Const URL_CureCoin_EOC As String = "http://folding.extremeoverclocking.com/team_summary.php?s=&t=224497"
 
-    Public Const URL_FAH As String = "https://folding.stanford.edu/start-folding/"
-    Public Const URL_FAH_Client As String = "http://folding.stanford.edu/client/"
-    Public Const URL_NaCl_FAH As String = "http://folding.stanford.edu/nacl/"
+    Public Const URL_FAH As String = "https://foldingathome.org/start-folding/"
+    Public Const URL_FAH_Client As String = "http://client.foldingathome.org/"
+    Public Const URL_NaCl_FAH As String = "http://nacl.foldingathome.org/"
 
     'This HTML is easier to view in source code file: FoldingBrowser.html
     Public Const HTML_PortalPage As String = "<html><head><title>FoldingBrowser - Earn Digital Assets with FoldingCoin and CureCoin</title></head>
@@ -80,7 +81,6 @@ Public Module GlobalRefs
     Public Const INI_Homepage As String = "Homepage"
 
     'Wallet Id specific
-    Public Const INI_FAH_Username As String = "FAHUsername"
     Public Const INI_EOC_ID As String = "ExtremeOverclockingUserId"
     Public Const INI_WalletName As String = "WalletName"
     Public Const INI_DiscordInvites As String = "DiscordInvites"
@@ -193,10 +193,26 @@ Public Class KeyboardHandler
     Public Function OnPreKeyEvent(browserControl As CefSharp.IWebBrowser, browser As CefSharp.IBrowser, type As CefSharp.KeyType, windowsKeyCode As Integer, nativeKeyCode As Integer, modifiers As CefSharp.CefEventFlags, isSystemKey As Boolean, ByRef isKeyboardShortcut As Boolean) As Boolean Implements CefSharp.IKeyboardHandler.OnPreKeyEvent
         If type = CefSharp.KeyType.RawKeyDown Then
             Select Case windowsKeyCode
-            'Entire Window: Press ESC to cancel Navigation, Press F5 to Refresh
-                Case Keys.Escape, Keys.F5
-                    g_Main.updateKeyPress(windowsKeyCode)
+                'Browser active control event: Press ESC to cancel Navigation, F5 to Refresh, CTRL+F5 to Clear Cache, ALT+Left for Navigate Back, ALT+Right for Navigate Forward, F12 for Web Tools
+                Case Keys.Right, Keys.Left
+                    If modifiers = CefSharp.CefEventFlags.AltDown Then
+                        g_Main.updateKeyPress(windowsKeyCode, modifiers)
+                        Return True
+                    End If
+                Case Keys.F
+                    If modifiers = CefSharp.CefEventFlags.ControlDown Then
+                        g_Main.updateKeyPress(windowsKeyCode, modifiers)
+                        Return True
+                    End If
+                Case Keys.Escape, Keys.F5, Keys.F12
+                    g_Main.updateKeyPress(windowsKeyCode, modifiers)
                     Return True
+                Case Keys.Prior, Keys.Next
+                    'Mouse Forward and Back "keystroke" shortcut buttons: Differentiate between PageDown and Next, or PageUp and Prior keystrokes
+                    If nativeKeyCode = 16777217 Then
+                        g_Main.updateKeyPress(windowsKeyCode, modifiers)
+                        Return True
+                    End If
             End Select
         End If
 

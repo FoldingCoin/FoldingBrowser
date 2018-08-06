@@ -4,11 +4,9 @@
     'Page loaded indicator
     Private m_bPageLoaded As Boolean = False
     Private m_bDefaultHomepageLoaded As Boolean = False
+    Private m_bLoadingFAHWebControl As Boolean = False
     'URL to help determine the page loaded indicator
     Private m_strPageURL As String = ""
-
-    'Timer for resetting after errors
-    Private m_timerErr As New System.Timers.Timer
 
 #Region "Form and Browser Events - Initialization, Exiting"
     Public Sub New()
@@ -23,13 +21,11 @@
             settings.LocalesDirPath = System.IO.Path.Combine(My.Application.Info.DirectoryPath, "locales")
             settings.Locale = "en-US"
             settings.AcceptLanguageList = settings.Locale & "," & settings.Locale.Substring(0, 2)
-#If DEBUG Then
-            'Debug: Log everything - verbose
-            settings.LogSeverity = CefSharp.LogSeverity.Verbose
-#Else
-            'Release: Only log info, warnings, errors
+
+            'For Debugging, to log everything, use: Verbose. Can cause Cef.Shutdown() to hang.
+            'settings.LogSeverity = CefSharp.LogSeverity.Verbose
             settings.LogSeverity = CefSharp.LogSeverity.Info
-#End If
+
             Try
                 'The log file gets appended to each time, so delete it (or else it can get large over time)
                 If System.IO.File.Exists(settings.LogFile) = True Then
@@ -47,13 +43,13 @@
             If CefSharp.Cef.Initialize(settings) = True Then
                 Me.browser = New CefSharp.WinForms.ChromiumWebBrowser(URL_BLANK)
                 'Add browser event handlers to pass events back to the main UI
-                AddHandler Me.browser.FrameLoadEnd, AddressOf onBrowserFrameLoadEnd
-                AddHandler Me.browser.ConsoleMessage, AddressOf onBrowserConsoleMessage
+                AddHandler Me.browser.FrameLoadEnd, AddressOf OnBrowserFrameLoadEnd
+                AddHandler Me.browser.ConsoleMessage, AddressOf OnBrowserConsoleMessage
                 AddHandler Me.browser.StatusMessage, AddressOf OnBrowserStatusMessage
                 AddHandler Me.browser.LoadingStateChanged, AddressOf OnBrowserLoadingStateChanged
                 AddHandler Me.browser.TitleChanged, AddressOf OnBrowserTitleChanged
                 AddHandler Me.browser.AddressChanged, AddressOf OnBrowserAddressChanged
-                'Add keypress handler: Press ESC to cancel Navigation, Press F5 to Refresh
+                'Add keypress handler: ESC to cancel Navigation, F5 to Refresh, CTRL+F for Find, ...
                 Me.browser.KeyboardHandler = New KeyboardHandler()
                 'Add download handler
                 Me.browser.DownloadHandler = New DownloadHandler()
@@ -87,6 +83,13 @@
             Me.btnReload.Image = My.Resources.Reload_16.ToBitmap
             Me.btnHome.Text = ""
             Me.btnHome.Image = My.Resources.Home_16.ToBitmap
+            'Find/Search buttons
+            Me.btnFindPrevious.Text = ""
+            Me.btnFindPrevious.Image = My.Resources.FindUp_16.ToBitmap
+            Me.btnFindNext.Text = ""
+            Me.btnFindNext.Image = My.Resources.FindDown_16.ToBitmap
+            Me.btnFindClose.Text = ""
+            Me.btnFindClose.Image = My.Resources.Stop_16.ToBitmap
 
             'Button Images
             Me.btnMyWallet.BackgroundImage = My.Resources.Coins_4_top_24.ToBitmap
@@ -97,7 +100,7 @@
             Me.btnEOC.BackgroundImage = My.Resources.EOC_48.ToBitmap
 
             'Protein image on the right side of the browser
-            Me.PictureBox2.Image = My.Resources.L_cysteine_3D_vdW2_32.ToBitmap
+            Me.pbProgIcon.Image = My.Resources.L_cysteine_3D_vdW2_32.ToBitmap
 
 #If DEBUG Then
             'Debug: show Dev Tools
@@ -147,7 +150,6 @@
         End Try
     End Sub
 
-#Region "Extra Setup"
     Private Async Sub LoadINISettings()
         'Load, fix, or update the INI and DAT files for the stored settings. Look to see if there is an INI file first
         If System.IO.File.Exists(IniFilePath) = True Then
@@ -219,9 +221,9 @@
 
             'Create text from the INI, Encrypt, and Write/flush DAT text to file
             SaveDat(Encrypt(DAT.SaveToString))
-            DAT = Nothing
             'Allow time for the file to be written out
             Await Wait(100)
+            DAT = Nothing
 
             'Make the main form visible
             Me.WindowState = FormWindowState.Normal
@@ -253,6 +255,8 @@
                     DAT.RemoveSection(OldSection)
                     'Create text from the INI, Encrypt, and Write/flush DAT text to file
                     SaveDat(Encrypt(DAT.SaveToString))
+                    'Allow time for the file to be written out
+                    Await Wait(100)
 
                     'Save a wallet name
                     INI.AddSection(Id & Me.cbxWalletId.Text)
@@ -260,6 +264,7 @@
                     'Last FoldingBrowser version, now upgraded to v5
                     INI.AddSection(INI_Settings).AddKey(INI_LastBrowserVersion).Value = "5"
                     INI.Save(IniFilePath)
+                    'Allow time for the file to be written out
                     Await Wait(100)
                 End If
 
@@ -306,6 +311,7 @@
 
                     'Create text from the INI, Encrypt, and Write/flush DAT text to file
                     SaveDat(Encrypt(DAT.SaveToString))
+                    'Allow time for the file to be written out
                     Await Wait(100)
                     DAT = Nothing
 
@@ -316,6 +322,7 @@
                     'Last FoldingBrowser version, now upgraded to v6
                     INI.AddSection(INI_Settings).AddKey(INI_LastBrowserVersion).Value = "6"
                     INI.Save(IniFilePath)
+                    'Allow time for the file to be written out
                     Await Wait(100)
                 End If
 
@@ -341,9 +348,9 @@
 
             'Create text from the INI, Encrypt, and Write/flush DAT text to file
             SaveDat(Encrypt(DAT.SaveToString))
-            DAT = Nothing
             'Allow time for the file to be written out
             Await Wait(100)
+            DAT = Nothing
         End If
         'Refresh the Wallet Names
         cbxWalletId_SelectedIndexChanged(Nothing, Nothing)
@@ -377,18 +384,6 @@
                         'Create a dialog that sets the default checkbox selections based on stored wallet and F@H info.
                         Dim Setup As New SetupDialog
 
-                        'Look for FAH username for FAH installation to un-check the dialog for existing users
-                        If INI.GetSection(Id & Me.cbxWalletId.Text) IsNot Nothing AndAlso INI.GetSection(Id & Me.cbxWalletId.Text).GetKey(INI_FAH_Username) IsNot Nothing Then
-                            'Has FAH setup already
-                            Setup.chkGetFAHSoftware.Checked = False
-                        Else
-                            'Needs FAH
-
-                            'TODO: Additionally look for FAH installation on PC?
-
-                            Setup.chkGetFAHSoftware.Checked = True
-                        End If
-
                         Dim DAT As New IniFile
                         'Load DAT file, decrypt it
                         DAT.LoadText(Decrypt(LoadDat))
@@ -398,16 +393,40 @@
                             MessageBox.Show(DAT_ErrorMsg)
                         End If
 
-                        'Look for 12-word Passphrase (or BTC address?) to un-check the dialog for existing users
-                        If DAT.GetSection(Id & Me.cbxWalletId.Text) IsNot Nothing AndAlso DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CP12Words) IsNot Nothing Then
-                            'Wallet info exists
-                            Setup.chkGetWalletForFLDC.Checked = False
-                        Else
-                            'No saved Wallet info
-                            Setup.chkGetWalletForFLDC.Checked = True
+                        'Look for FAH username for FAH installation to un-check the dialog for existing users
+                        Try
+                            If DAT.GetSection(Id & Me.cbxWalletId.Text) IsNot Nothing AndAlso DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_FAH_Username) IsNot Nothing Then
+                                'Has FAH setup already
+                                Setup.chkGetFAHSoftware.Checked = False
+                            Else
 
-                            'TODO: Ask for existing wallet info? (probably too confusing / too many options)
-                        End If
+                                'Additionally look for FAH installation on PC
+                                If System.IO.File.Exists("C:\Program Files (x86)\FAHClient\FAHClient.exe") = True OrElse System.IO.File.Exists("C:\Program Files\FAHClient\FAHClient.exe") = True Then
+                                    'Has FAH setup already
+                                    Setup.chkGetFAHSoftware.Checked = False
+                                Else
+                                    'Needs FAH
+                                    Setup.chkGetFAHSoftware.Checked = True
+                                End If
+                            End If
+                        Catch
+                            Setup.chkGetFAHSoftware.Checked = True
+                        End Try
+
+                        'Look for 12-word Passphrase (or BTC address?) to un-check the dialog for existing users
+                        Try
+                            If DAT.GetSection(Id & Me.cbxWalletId.Text) IsNot Nothing AndAlso DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CP12Words) IsNot Nothing Then
+                                'Wallet info exists
+                                Setup.chkGetWalletForFLDC.Checked = False
+                            Else
+                                'No saved Wallet info
+                                Setup.chkGetWalletForFLDC.Checked = True
+
+                                'TODO: Ask for existing 12-word PW CounterParty wallet info? (probably too confusing / too many options)
+                            End If
+                        Catch
+                            Setup.chkGetWalletForFLDC.Checked = True
+                        End Try
 
                         'Done with the DAT file
                         DAT = Nothing
@@ -493,102 +512,9 @@
             End If
         End If
     End Sub
-#End Region
-
-    Private Sub onBrowserFrameLoadEnd(sender As Object, e As CefSharp.FrameLoadEndEventArgs)
-        'Set a flag to indicate the web page has finished loading. This event is fired for each frame that loads, so compare URLs before setting the flag as loaded (NOTE: Me.browser.IsLoading = True, doesn't work)
-        If e.Url.Contains(m_strPageURL) Then
-            m_bPageLoaded = True
-        End If
-    End Sub
-
-    Private Sub onBrowserConsoleMessage(sender As Object, e As CefSharp.ConsoleMessageEventArgs)
-        If e.Line > 0 Then
-            addActivity(e.Message & " (" & e.Source & ", ln " & e.Line.ToString & " )")
-        Else
-            addActivity(e.Message)
-        End If
-    End Sub
-    Private Sub OnBrowserStatusMessage(sender As Object, args As CefSharp.StatusMessageEventArgs)
-        addActivity(args.Value)
-    End Sub
-
-    Private Sub OnBrowserLoadingStateChanged(sender As Object, args As CefSharp.LoadingStateChangedEventArgs)
-        enableButtons(args.CanGoForward, args.CanGoBack, Not args.CanReload)
-    End Sub
-    Private Sub enableButtons(bForward As Boolean, bBack As Boolean, bLoading As Boolean)
-        Me.Invoke(Sub()
-                      Me.btnBack.Enabled = bBack
-                      Me.btnFwd.Enabled = bForward
-                      Me.btnStopNav.Enabled = bLoading
-                      Me.btnGo.Enabled = Not bLoading
-                  End Sub)
-    End Sub
-
-    Private Sub OnBrowserTitleChanged(sender As Object, args As CefSharp.TitleChangedEventArgs)
-        updateTitle(args.Title)
-    End Sub
-    Private Sub updateTitle(strTitle As String)
-        Me.Invoke(Sub()
-                      Me.Text = If(strTitle.Length = 0, "", strTitle & " - ") & Prog_Name & " v" & My.Application.Info.Version.Major.ToString
-                  End Sub)
-    End Sub
-
-    Private Sub OnBrowserAddressChanged(sender As Object, args As CefSharp.AddressChangedEventArgs)
-        updateURL(args.Address)
-    End Sub
-    Private Sub updateURL(strURL As String)
-        Me.Invoke(Sub()
-                      Me.txtURL.Text = strURL
-                      m_strPageURL = strURL
-                      Me.txtURL.Focus()
-                      Me.txtURL.Select(Me.txtURL.Text.Length, 0)
-                  End Sub)
-    End Sub
-
-    Public Delegate Sub updateKP(iKeyCode As Integer)
-    Public Sub updateKeyPress(iKeyCode As Integer)
-        Me.Invoke(New updateKP(AddressOf upKeyPress), {iKeyCode})
-    End Sub
-
-    Public Sub upKeyPress(iKeyCode As Integer)
-        Select Case iKeyCode
-            Case Keys.Escape
-                StopNavigaion()
-
-            Case Keys.F5
-                Me.browser.GetBrowser.Reload(True)
-        End Select
-    End Sub
-
-    Public Delegate Sub updateDL(iPercent As Integer, bComplete As Boolean, bCancelled As Boolean)
-    Public Sub updateDownload(iPercent As Integer, bComplete As Boolean, bCancelled As Boolean)
-        Me.Invoke(New updateDL(AddressOf upDL), {iPercent, bComplete, bCancelled})
-    End Sub
-
-    Public Sub upDL(iPercent As Integer, bComplete As Boolean, bCancelled As Boolean)
-        'Show when download starts
-        If Me.gbxDownload.Visible = False Then
-            Me.gbxDownload.Visible = True
-        End If
-
-        'Update status
-        Me.ProgressBar1.Value = iPercent
-        Me.lblPercent.Text = iPercent.ToString & "%"
-        Me.btnStopNav.Enabled = True
-
-        'When complete, reset the status bar
-        If bComplete = True OrElse bCancelled = True Then
-            Me.gbxDownload.Visible = False
-            Me.ProgressBar1.Value = 0
-            Me.lblPercent.Text = ""
-            Me.btnStopNav.Enabled = False
-            g_bCancelNav = False
-            g_bAskDownloadLocation = True
-        End If
-    End Sub
 
     Private Sub Main_FormClosing(sender As Object, e As System.Windows.Forms.FormClosingEventArgs) Handles Me.FormClosing
+        g_bCancelNav = True
         Try
             'Last Wallet Id used
             INI.AddSection(INI_Settings).AddKey(INI_LastWalletId).Value = Me.cbxWalletId.Text
@@ -629,12 +555,15 @@
         Try
             'Keep this before CefSharp.Cef.Shutdown() to avoid the browser hanging (CefSharp v53.0.1): when exiting the wallet & click yes, then close the Browser (like the javascript running causes the hang)
             'StopNavigaion()  'In v55, this appears to cause: Exception thrown: 'System.Exception' in CefSharp.dll
+            g_bCancelNav = True
             ClearWebpage()
+            'Added in v63.0.3. Exiting the FAH Web control was hanging the Cef.Shutdown(). On shutdown, the FAH Web control error was happening, and reloading w/o cache when closing. 'Verbose' debug logging was getting cutoff too, and changing logging to 'info' helped fix it
+            g_bCancelNav = True
             Delay(150)
 
             If Me.browser IsNot Nothing Then
-                RemoveHandler Me.browser.FrameLoadEnd, AddressOf onBrowserFrameLoadEnd
-                RemoveHandler Me.browser.ConsoleMessage, AddressOf onBrowserConsoleMessage
+                RemoveHandler Me.browser.FrameLoadEnd, AddressOf OnBrowserFrameLoadEnd
+                RemoveHandler Me.browser.ConsoleMessage, AddressOf OnBrowserConsoleMessage
                 RemoveHandler Me.browser.StatusMessage, AddressOf OnBrowserStatusMessage
                 RemoveHandler Me.browser.LoadingStateChanged, AddressOf OnBrowserLoadingStateChanged
                 RemoveHandler Me.browser.TitleChanged, AddressOf OnBrowserTitleChanged
@@ -644,11 +573,13 @@
 
                 'Shutdown the web browser control
                 If Me.browser.IsDisposed = False Then
+                    'This is prone to hanging the app when exiting:
                     CefSharp.Cef.Shutdown()
                     'Wait for CefSharp.Cef.Shutdown(): This 100ms delay seems to help prevent the messed up state for older (and current) CefSharp versions. Otherwise, the cache needs to be deleted for the FAH Control web page to work (at least with CEF1, v25)
                     Delay(100)
                 End If
             End If
+
         Catch ex As Exception
             Msg("Error: Exiting: " & ex.ToString)
         End Try
@@ -658,17 +589,16 @@
 #End Region
 
 #Region "Button, Checkbox, Combobox - Form Control Events"
-    Private Async Sub btnMyWallet_Click(sender As System.Object, e As System.EventArgs) Handles btnMyWallet.Click
-        If Await LoginToCounterwallet() = False Then MessageBox.Show("Task 'Log Into Wallet' did not complete. Please try again.")
-    End Sub
-
-
     Private Sub btnFAHControl_Click(sender As System.Object, e As System.EventArgs) Handles btnFAHControl.Click
 #Disable Warning BC42358 ' Because this call is not awaited, execution of the current method continues before the call is completed
         OpenURL(URL_FAH_Client, False)
 #Enable Warning BC42358
     End Sub
 
+
+    Private Async Sub btnMyWallet_Click(sender As System.Object, e As System.EventArgs) Handles btnMyWallet.Click
+        If Await LoginToCounterwallet() = False Then MessageBox.Show("Task 'Log Into Wallet' did not complete. Please try again.")
+    End Sub
 
     Private Sub btnFoldingCoinWebsite_Click(sender As System.Object, e As System.EventArgs) Handles btnFoldingCoinWebsite.Click
 #Disable Warning BC42358 ' Because this call is not awaited, execution of the current method continues before the call is completed
@@ -693,6 +623,11 @@
                 Dim DAT As New IniFile
                 'Load DAT file, decrypt it
                 DAT.LoadText(Decrypt(LoadDat))
+                If DAT.ToString.Length = 0 Then
+                    'Decryption failed
+                    Msg(DAT_ErrorMsg)
+                    MessageBox.Show(DAT_ErrorMsg)
+                End If
 
                 If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_BTC_Addr) IsNot Nothing Then
                     'If the address is available, then open that URL for the users wallet
@@ -726,6 +661,11 @@
                 Dim DAT As New IniFile
                 'Load DAT file, decrypt it
                 DAT.LoadText(Decrypt(LoadDat))
+                If DAT.ToString.Length = 0 Then
+                    'Decryption failed
+                    Msg(DAT_ErrorMsg)
+                    MessageBox.Show(DAT_ErrorMsg)
+                End If
 
                 If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_BTC_Addr) IsNot Nothing Then
                     'If the address is available, then open that URL for the users wallet
@@ -760,6 +700,12 @@
 #Enable Warning BC42358
     End Sub
 
+    Private Sub btnFoldingCoinShop_Click(sender As Object, e As EventArgs) Handles btnFoldingCoinShop.Click
+#Disable Warning BC42358 ' Because this call is not awaited, execution of the current method continues before the call is completed
+        OpenURL(URL_FoldingCoinShop, False)
+#Enable Warning BC42358
+    End Sub
+
 
     Private Sub btnCureCoin_Click(sender As System.Object, e As System.EventArgs) Handles btnCureCoin.Click
 #Disable Warning BC42358 ' Because this call is not awaited, execution of the current method continues before the call is completed
@@ -784,6 +730,11 @@
                 Dim DAT As New IniFile
                 'Load DAT file, decrypt it
                 DAT.LoadText(Decrypt(LoadDat))
+                If DAT.ToString.Length = 0 Then
+                    'Decryption failed
+                    Msg(DAT_ErrorMsg)
+                    MessageBox.Show(DAT_ErrorMsg)
+                End If
 
                 If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CureCoin_Addr) IsNot Nothing Then
                     'If the address is available, then open that URL for the users wallet
@@ -837,33 +788,6 @@
                 INI.Save(IniFilePath)
             End If
 
-            'Get FAH Username from INI
-            If INI.GetSection(Id & Me.cbxWalletId.Text) IsNot Nothing AndAlso INI.GetSection(Id & Me.cbxWalletId.Text).GetKey(INI_FAH_Username) IsNot Nothing Then
-                strUsername = INI.GetSection(Id & Me.cbxWalletId.Text).GetKey(INI_FAH_Username).GetValue()
-            Else
-                'Fix missing value. Ask for FAH Username
-                Dim TxtEntry As New TextEntryDialog
-                TxtEntry.Text = "Save Folding@Home Username"
-                TxtEntry.MsgTextUpper.Text = "Folding@Home Username not found."
-                TxtEntry.MsgTextLower.Text = "Please enter your Folding@Home Username:"
-                TxtEntry.Width = (TxtEntry.MsgTextLower.Left * 2) + TxtEntry.MsgTextLower.Width + 10
-                TxtEntry.TextEnteredLower.Visible = False
-                TxtEntry.MsgTextExtraBottomNote.Visible = False
-                'Show modal dialog box
-                If TxtEntry.ShowDialog(Me) = DialogResult.OK Then
-                    'Store FAH Username
-                    INI.AddSection(Id & Me.cbxWalletId.Text).AddKey(INI_FAH_Username).Value = TxtEntry.TextEnteredUpper.Text
-                    INI.Save(IniFilePath)
-                    strUsername = TxtEntry.TextEnteredUpper.Text
-                    TxtEntry.Dispose()
-                Else
-                    TxtEntry.Dispose()
-                    Await OpenURL(URL_CureCoin_EOC, False)
-                    Await PageTitleWait("Curecoin")
-                    Await Wait(100)
-                    Exit Sub
-                End If
-            End If
         Catch ex As Exception
             Msg("Error: Loading Extreme Overclocking settings: " & ex.ToString)
         End Try
@@ -875,6 +799,43 @@
                 Await OpenURL(URL_CureCoin_EOC, False)
                 Await PageTitleWait("Curecoin")
                 Await Wait(100)
+
+                Dim DAT As New IniFile
+                'Load DAT file, decrypt it
+                DAT.LoadText(Decrypt(LoadDat))
+                If DAT.ToString.Length = 0 Then
+                    'Decryption failed
+                    Msg(DAT_ErrorMsg)
+                    MessageBox.Show(DAT_ErrorMsg)
+                End If
+
+                'Look for FAH username for FAH installation to un-check the dialog for existing users
+                If DAT.GetSection(Id & Me.cbxWalletId.Text) IsNot Nothing AndAlso DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_FAH_Username) IsNot Nothing Then
+                    strUsername = DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_FAH_Username).GetValue()
+                Else
+                    'Fix missing value. Ask for FAH Username
+                    Dim TxtEntry As New TextEntryDialog
+                    TxtEntry.Text = "Save Folding@Home Username"
+                    TxtEntry.MsgTextUpper.Text = "Folding@Home Username not found."
+                    TxtEntry.MsgTextLower.Text = "Please enter your Folding@Home Username:"
+                    TxtEntry.Width = (TxtEntry.MsgTextLower.Left * 2) + TxtEntry.MsgTextLower.Width + 10
+                    TxtEntry.TextEnteredLower.Visible = False
+                    TxtEntry.MsgTextExtraBottomNote.Visible = False
+                    'Show modal dialog box
+                    If TxtEntry.ShowDialog(Me) = DialogResult.OK Then
+                        'Store FAH Username
+                        DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_FAH_Username).Value = TxtEntry.TextEnteredUpper.Text
+                        'Create text from the INI, Encrypt, and Write/Flush DAT text to file
+                        SaveDat(Encrypt(DAT.SaveToString))
+                        'Allow time for the file to be written out
+                        Await Wait(100)
+                        strUsername = TxtEntry.TextEnteredUpper.Text
+                    End If
+                    TxtEntry.Dispose()
+                End If
+
+                'Done with the DAT file
+                DAT = Nothing
 
                 'Skip the address lookup after 3 attempts. The user will have to save the info in the saved settings to fix it.
                 If iUserId < 3 AndAlso strUsername.Length > 0 Then
@@ -1160,11 +1121,12 @@
 
                     'Create text from the INI, Encrypt, and Write/Flush DAT text to file
                     SaveDat(Encrypt(DAT.SaveToString))
+                    'Allow time for the file to be written out
+                    Await Wait(100)
 
                     'Save a wallet name
                     INI.AddSection(Id & Me.cbxWalletId.Text).AddKey(INI_WalletName).Value = DefaultWalletName & Me.cbxWalletId.Text
                     INI.Save(IniFilePath)
-
                     'Allow time for the file to be written out
                     Await Wait(100)
 
@@ -1551,10 +1513,9 @@
                 End If
                 'Create text from the INI, Encrypt, and Write/flush DAT text to file
                 SaveDat(Encrypt(DAT.SaveToString))
-                DAT = Nothing
-
                 'Allow time for the file to be written out
                 Await Wait(100)
+                DAT = Nothing
 
                 'Refresh the Wallet Names
                 cbxWalletId_SelectedIndexChanged(Nothing, Nothing)
@@ -1742,8 +1703,8 @@
             End If
 
             'Try to get the CureCoin Address from saved info first
-            If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_CureCoin_Addr) IsNot Nothing Then
-                strWalletAddress = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_CureCoin_Addr).GetValue()
+            If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CureCoin_Addr) IsNot Nothing Then
+                strWalletAddress = DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CureCoin_Addr).GetValue()
             End If
 
             'See if the CureCoin Address was found, if not then try to get it
@@ -1874,13 +1835,13 @@
             If strWalletAddress.Length < 24 Then Return False
 
             'Save the DAT info
-            If DAT.GetSection(Id & g_Main.cbxWalletId.Text) Is Nothing Then DAT.AddSection(Id & g_Main.cbxWalletId.Text)
-            If strWalletVersion.Length > 5 Then DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_CureCoin_Wallet_Version).Value = strWalletVersion
-            If strWalletAddress.Length > 24 Then DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_CureCoin_Addr).Value = strWalletAddress
+            If DAT.GetSection(Id & Me.cbxWalletId.Text) Is Nothing Then DAT.AddSection(Id & Me.cbxWalletId.Text)
+            If strWalletVersion.Length > 5 Then DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_CureCoin_Wallet_Version).Value = strWalletVersion
+            If strWalletAddress.Length > 24 Then DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_CureCoin_Addr).Value = strWalletAddress
 
             'Try to get the FAH Username from saved info first
-            If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Username) IsNot Nothing Then
-                strFAHUser = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Username).GetValue()
+            If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_FAH_Username) IsNot Nothing Then
+                strFAHUser = DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_FAH_Username).GetValue()
             End If
             If strFAHUser.Length < 2 Then
                 'Prompt for FAH username. Can be short for a CureCoin only username...
@@ -1896,15 +1857,15 @@
                     'Get the Folding Username / CureCoin Pool Login
                     If TxtEntry.TextEnteredUpper.Text.Length > 1 Then
                         strFAHUser = TxtEntry.TextEnteredUpper.Text
-                        DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_FAH_Username).Value = strFAHUser
+                        DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_FAH_Username).Value = strFAHUser
                     End If
                 End If
                 TxtEntry.Dispose()
             End If
 
             'Try to get the Email from saved info first
-            If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_Email) IsNot Nothing Then
-                strEmail = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_Email).GetValue()
+            If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_Email) IsNot Nothing Then
+                strEmail = DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_Email).GetValue()
             End If
             If strEmail.Length < 4 Then
                 'Prompt for Email Address
@@ -1920,15 +1881,15 @@
                     'Get the Email Address
                     If TxtEntry.TextEnteredUpper.Text.Length > 3 Then
                         strEmail = TxtEntry.TextEnteredUpper.Text
-                        DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_Email).Value = strEmail
+                        DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_Email).Value = strEmail
                     End If
                 End If
                 TxtEntry.Dispose()
             End If
 
             'Try to get the CureCoin pool password from saved info first
-            If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_CureCoin_Pwd) IsNot Nothing Then
-                strPoolPW = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_CureCoin_Pwd).GetValue()
+            If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CureCoin_Pwd) IsNot Nothing Then
+                strPoolPW = DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CureCoin_Pwd).GetValue()
             End If
             If strPoolPW.Length < 5 Then
                 'Makeup a new 35-50 char Password (Skip characters that conflict with the INI format: =;#[]\)
@@ -1941,12 +1902,12 @@
                 strPoolPW = chrPW   'Don't use .ToString here
 
                 'Save the new Password
-                If strPoolPW.Length > 24 Then DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_CureCoin_Pwd).Value = strPoolPW
+                If strPoolPW.Length > 24 Then DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_CureCoin_Pwd).Value = strPoolPW
             End If
 
             'Try to get the CureCoin pool pin from saved info first
-            If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_CureCoin_Pin) IsNot Nothing Then
-                strPoolPin = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_CureCoin_Pin).GetValue()
+            If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CureCoin_Pin) IsNot Nothing Then
+                strPoolPin = DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CureCoin_Pin).GetValue()
             End If
             If strPoolPin.Length < 6 Then
                 'Makeup a new Pin (6-20 char)
@@ -1958,11 +1919,13 @@
                     strPoolPin = strPoolPin.Substring(0, 20)
                 End If
                 'Save the new Pin
-                If strPoolPin.Length >= 6 Then DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_CureCoin_Pin).Value = strPoolPin
+                If strPoolPin.Length >= 6 Then DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_CureCoin_Pin).Value = strPoolPin
             End If
 
             'Create text from the INI, Encrypt, and Write/flush DAT text to file
             SaveDat(Encrypt(DAT.SaveToString))
+            'Allow time for the file to be written out
+            Await Wait(100)
             DAT = Nothing
 
             Await PageTitleWait(NameCryptoBullions)
@@ -2159,8 +2122,8 @@
                 End If
             End If
             'Try to get the FAH Username from saved info first
-            If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Username) IsNot Nothing Then
-                strFAHUser = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Username).GetValue()
+            If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_FAH_Username) IsNot Nothing Then
+                strFAHUser = DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_FAH_Username).GetValue()
             End If
             If strFAHUser.Length < 2 Then
                 'Prompt for FAH username (and all the other info?). Can be short for a CureCoin only username...
@@ -2176,7 +2139,7 @@
                     'Get the Folding Username / CureCoin Pool Login
                     If TxtEntry.TextEnteredUpper.Text.Length > 1 Then
                         strFAHUser = TxtEntry.TextEnteredUpper.Text
-                        DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_FAH_Username).Value = strFAHUser
+                        DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_FAH_Username).Value = strFAHUser
                         bSaveDat = True
                     End If
                 End If
@@ -2184,8 +2147,8 @@
             End If
 
             'Try to get the CureCoin pool password from saved info first
-            If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_CureCoin_Pwd) IsNot Nothing Then
-                strPoolPW = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_CureCoin_Pwd).GetValue()
+            If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CureCoin_Pwd) IsNot Nothing Then
+                strPoolPW = DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_CureCoin_Pwd).GetValue()
             End If
             If strPoolPW.Length < 5 Then
                 'Ask for existing password
@@ -2201,13 +2164,13 @@
                     'Get the CureCoin Pool Password (Top text box)
                     If TxtEntry.TextEnteredUpper.Text.Length > 1 Then
                         strPoolPW = TxtEntry.TextEnteredUpper.Text
-                        DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_CureCoin_Pwd).Value = strPoolPW
+                        DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_CureCoin_Pwd).Value = strPoolPW
                         bSaveDat = True
                     End If
 
                     'Get the CureCoin Pool Pin (Bottom text box)
                     If TxtEntry.TextEnteredLower.Text.Length > 1 Then
-                        DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_CureCoin_Pin).Value = TxtEntry.TextEnteredLower.Text
+                        DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_CureCoin_Pin).Value = TxtEntry.TextEnteredLower.Text
                         bSaveDat = True
                     End If
                 End If
@@ -2217,6 +2180,8 @@
             If bSaveDat = True Then
                 'Create text from the INI, Encrypt, and Write/flush DAT text to file
                 SaveDat(Encrypt(DAT.SaveToString))
+                'Allow time for the file to be written out
+                Await Wait(100)
             End If
             DAT = Nothing
 
@@ -2443,7 +2408,248 @@
     End Function
 #End Region
 
-#Region "Browser Controls"
+#Region "Browser Control Event Handlers"
+    Private Sub OnBrowserFrameLoadEnd(sender As Object, e As CefSharp.FrameLoadEndEventArgs)
+        'Set a flag to indicate the web page has finished loading. This event is fired for each frame that loads, so compare URLs before setting the flag as loaded (NOTE: Me.browser.IsLoading = True, doesn't work)
+        If e.Url.Contains(m_strPageURL) Then
+            m_bPageLoaded = True
+        End If
+    End Sub
+
+    Private Sub OnBrowserConsoleMessage(sender As Object, e As CefSharp.ConsoleMessageEventArgs)
+        If e.Line > 0 Then
+            addActivity(e.Message & " (" & e.Source & ", ln " & e.Line.ToString & " )")
+        Else
+            addActivity(e.Message)
+        End If
+
+        'WORKAROUND: FAH Web Control, where it gets stuck in an infinite refresh loop in Chrome v59+, and needs a refresh without cache to fix that condition. This error also occurs almost every time you leave the FAH web control page, so avoid reloading when clicking other web link buttons or exiting.
+        If m_bLoadingFAHWebControl = True AndAlso g_bCancelNav = False AndAlso e.Message = "DEBUG: error: " AndAlso e.Source = "http://127.0.0.1:7396/js/main.js" Then
+            'Refresh ignoring browser cache
+            Me.browser.GetBrowser.Reload(True)
+            'Reset flag
+            m_bLoadingFAHWebControl = False
+        End If
+    End Sub
+    Private Sub OnBrowserStatusMessage(sender As Object, args As CefSharp.StatusMessageEventArgs)
+        addActivity(args.Value)
+    End Sub
+
+    Private Sub OnBrowserLoadingStateChanged(sender As Object, args As CefSharp.LoadingStateChangedEventArgs)
+        enableButtons(args.CanGoForward, args.CanGoBack, Not args.CanReload)
+    End Sub
+    Private Sub enableButtons(bForward As Boolean, bBack As Boolean, bLoading As Boolean)
+        Me.Invoke(Sub()
+                      Me.btnBack.Enabled = bBack
+                      Me.btnFwd.Enabled = bForward
+                      Me.btnStopNav.Enabled = bLoading
+                      Me.btnGo.Enabled = Not bLoading
+                      'Set focus back to the browser control window instead of the buttons
+                      Me.browser.Select()
+                  End Sub)
+    End Sub
+
+    Private Sub OnBrowserTitleChanged(sender As Object, args As CefSharp.TitleChangedEventArgs)
+        updateTitle(args.Title)
+    End Sub
+    Private Sub updateTitle(strTitle As String)
+        Me.Invoke(Sub()
+                      Me.Text = If(strTitle.Length = 0, "", strTitle & " - ") & Prog_Name & " v" & My.Application.Info.Version.Major.ToString
+                  End Sub)
+    End Sub
+
+    Private Sub OnBrowserAddressChanged(sender As Object, args As CefSharp.AddressChangedEventArgs)
+        updateURL(args.Address)
+    End Sub
+    Private Sub updateURL(strURL As String)
+        Me.Invoke(Sub()
+                      Me.txtURL.Text = strURL
+                      m_strPageURL = strURL
+                      Me.txtURL.Focus()
+                      Me.txtURL.Select(Me.txtURL.Text.Length, 0)
+                  End Sub)
+    End Sub
+
+    Public Delegate Sub updateDL(iPercent As Integer, bComplete As Boolean, bCancelled As Boolean)
+    Public Sub updateDownload(iPercent As Integer, bComplete As Boolean, bCancelled As Boolean)
+        Me.Invoke(New updateDL(AddressOf upDL), {iPercent, bComplete, bCancelled})
+    End Sub
+
+    Public Sub upDL(iPercent As Integer, bComplete As Boolean, bCancelled As Boolean)
+        'Show when download starts
+        If Me.gbxDownload.Visible = False Then
+            Me.gbxDownload.Visible = True
+        End If
+
+        'Update status
+        Me.ProgressBar1.Value = iPercent
+        Me.lblPercent.Text = iPercent.ToString & "%"
+        Me.btnStopNav.Enabled = True
+
+        'When complete, reset the status bar
+        If bComplete = True OrElse bCancelled = True Then
+            Me.gbxDownload.Visible = False
+            Me.ProgressBar1.Value = 0
+            Me.lblPercent.Text = ""
+            Me.btnStopNav.Enabled = False
+            g_bCancelNav = False
+            g_bAskDownloadLocation = True
+        End If
+    End Sub
+
+    'NOTE: These control keypress events should match the equivalent events for the form events below (so they happen for whichever is active)
+    Public Delegate Sub updateKP(iKeyCode As Integer, efModifiers As CefSharp.CefEventFlags)
+    Public Sub updateKeyPress(iKeyCode As Integer, efModifiers As CefSharp.CefEventFlags)
+        Me.Invoke(New updateKP(AddressOf upKeyPress), {iKeyCode, efModifiers})
+    End Sub
+
+    Public Sub upKeyPress(iKeyCode As Integer, efModifiers As CefSharp.CefEventFlags)
+        Select Case iKeyCode
+            Case Keys.Escape
+                If Me.pnlFind.Visible = True Then
+                    'ESC: Close find panel
+                    btnFindClose_Click(Nothing, Nothing)
+                Else
+                    StopNavigaion()
+                End If
+
+            Case Keys.F5
+                If efModifiers = CefSharp.CefEventFlags.ControlDown Then
+                    'Refresh ignoring browser cache
+                    Me.browser.GetBrowser.Reload(True)
+                Else
+                    'Refresh
+                    Me.browser.GetBrowser.Reload(False)
+                End If
+
+            Case Keys.F
+                If efModifiers = CefSharp.CefEventFlags.ControlDown Then
+                    'Show the Find window
+                    Me.pnlFind.Visible = True
+                    FindTextInWebPage(True)
+                    Me.txtFind.SelectAll()
+                End If
+
+            Case Keys.Left
+                If efModifiers = CefSharp.CefEventFlags.AltDown Then
+                    'Back
+                    Me.browser.GetBrowser.GoBack()
+                    Me.browser.Select()
+                End If
+
+            Case Keys.Right
+                If efModifiers = CefSharp.CefEventFlags.AltDown Then
+                    'Forward
+                    Me.browser.GetBrowser.GoForward()
+                    Me.browser.Select()
+                End If
+
+            Case Keys.Prior
+                'Back
+                Me.browser.GetBrowser.GoBack()
+                'This probably doesn't do much. The buttons for Forward and Back are async set later that take focus back to the main form. This is probably best at this point, then the form's mouse events work for the 4th and 5th button's Forward and Back
+                Me.browser.Select()
+
+            Case Keys.Next
+                'Forward
+                Me.browser.GetBrowser.GoForward()
+                Me.browser.Select()
+
+            Case Keys.F12
+                'Web Tools
+                Me.browser.GetBrowser.GetHost.ShowDevTools()
+        End Select
+    End Sub
+#End Region
+
+#Region "Browser Window Controls"
+    'Form focused keystroke events: Press ESC to cancel Navigation, F5 to Refresh, CTRL+F5 Refresh ignoring cache, CTRL+F for Find, ALT+Left for Navigate Back, ALT+Right for Navigate Forward, F12 for Web Tools
+    Private Sub Main_KeyDown(sender As Object, e As KeyEventArgs) Handles Me.KeyDown
+        FormKeyDownEvents(e)
+    End Sub
+
+    'NOTE: These form keypress events should match the equivalent events for the browser control events above (so they happen for whichever is active)
+    Private Sub FormKeyDownEvents(ByRef e As KeyEventArgs)
+        Select Case e.KeyCode
+            Case Keys.Escape
+                If Me.pnlFind.Visible = True Then
+                    'ESC: Close find panel
+                    btnFindClose_Click(Nothing, Nothing)
+                    e.SuppressKeyPress = True
+                Else
+                    StopNavigaion()
+                    e.SuppressKeyPress = True
+                End If
+
+            Case Keys.F5
+                If e.Modifiers = Keys.Control Then
+                    'Refresh ignoring browser cache
+                    Me.browser.GetBrowser.Reload(True)
+                    e.SuppressKeyPress = True
+                Else
+                    'Refresh
+                    Me.browser.GetBrowser.Reload(False)
+                    e.SuppressKeyPress = True
+                End If
+
+            Case Keys.F
+                If e.Modifiers = Keys.Control Then
+                    'Show the Find window
+                    Me.pnlFind.Visible = True
+                    FindTextInWebPage(True)
+                    Me.txtFind.SelectAll()
+                    e.SuppressKeyPress = True
+                End If
+
+            Case Keys.Left
+                If e.Modifiers = Keys.Alt Then
+                    'Back
+                    Me.browser.GetBrowser.GoBack()
+                    Me.browser.Select()
+                    e.SuppressKeyPress = True
+                End If
+
+            Case Keys.Right
+                If e.Modifiers = Keys.Alt Then
+                    'Forward
+                    Me.browser.GetBrowser.GoForward()
+                    Me.browser.Select()
+                    e.SuppressKeyPress = True
+                End If
+
+            Case Keys.Prior
+                'Back. Can't differentiate between PageDown and Next, or PageUp and Prior keystrokes. Just focus the browser for a user retry
+                Me.browser.Select()
+                'Me.browser.GetBrowser.GoBack()
+                'e.SuppressKeyPress = True
+
+            Case Keys.Next
+                'Forward. Can't differentiate between PageDown and Next, or PageUp and Prior keystrokes. Just focus the browser for a user retry
+                Me.browser.Select()
+                'Me.browser.GetBrowser.GoForward()
+                'e.SuppressKeyPress = True
+
+            Case Keys.F12
+                'Web Tools
+                Me.browser.GetBrowser.GetHost.ShowDevTools()
+                e.SuppressKeyPress = True
+        End Select
+    End Sub
+
+    'Mouse Forward and Back: Works where mouse location is. Works for the main form window (but not over the browser control area) when using the extra mouse programmable 4th and 5th buttons on the mouse
+    Private Sub Main_MouseDown(sender As Object, e As MouseEventArgs) Handles Me.MouseDown, btnBack.MouseDown, btnBTCBlockchain.MouseDown, btnCureCoin.MouseDown, btnCureCoinBlockchain.MouseDown, btnCureCoinDiscord.MouseDown, btnCureCoinTwitter.MouseDown, btnCurePool.MouseDown, btnEOC.MouseDown, btnFAHControl.MouseDown, btnFLDC_Distribution.MouseDown, btnFoldingCoinBlockchain.MouseDown, btnFoldingCoinDiscord.MouseDown, btnFoldingCoinShop.MouseDown, btnFoldingCoinTwitter.MouseDown, btnFoldingCoinWebsite.MouseDown, btnFwd.MouseDown, btnGo.MouseDown, btnHome.MouseDown, btnMyWallet.MouseDown, btnReload.MouseDown, btnStopNav.MouseDown, chkShowTools.MouseDown, gbxCheckboxForTools.MouseDown, lblURL.MouseDown, pbProgIcon.MouseDown, txtURL.MouseDown
+        Select Case e.Button
+            Case MouseButtons.XButton1
+                'Back
+                Me.browser.Select()
+                Me.browser.GetBrowser.GoBack()
+            Case MouseButtons.XButton2
+                'Forward
+                Me.browser.Select()
+                Me.browser.GetBrowser.GoForward()
+        End Select
+    End Sub
+
     Private Sub btnBack_Click(sender As System.Object, e As System.EventArgs) Handles btnBack.Click
         Me.browser.GetBrowser.GoBack()
     End Sub
@@ -2459,19 +2665,10 @@
             OpenURL(Me.txtURL.Text, True)
 #Enable Warning BC42358
             e.SuppressKeyPress = True
+        Else
+            'See if there are other keystroke events that need to be handled
+            FormKeyDownEvents(e)
         End If
-    End Sub
-
-    'Entire Window: Press ESC to cancel Navigation, Press F5 to Refresh
-    Private Sub Main_KeyDown(sender As Object, e As KeyEventArgs) Handles Me.KeyDown
-        Select Case e.KeyCode
-            Case Keys.Escape
-                StopNavigaion()
-                e.SuppressKeyPress = True
-            Case Keys.F5
-                Me.browser.GetBrowser.Reload(True)
-                e.SuppressKeyPress = True
-        End Select
     End Sub
 
     Private Sub btnGo_Click(sender As System.Object, e As System.EventArgs) Handles btnGo.Click
@@ -2552,12 +2749,84 @@
         Return False
     End Function
 
+    Private Sub btnFindPrevious_Click(sender As Object, e As EventArgs) Handles btnFindPrevious.Click
+        FindTextInWebPage(False)
+    End Sub
+
+    Private Sub btnFindNext_Click(sender As Object, e As EventArgs) Handles btnFindNext.Click
+        FindTextInWebPage(True)
+    End Sub
+
+    Private Sub txtFind_TextChanged(sender As Object, e As EventArgs) Handles txtFind.TextChanged
+        FindTextInWebPage(True)
+    End Sub
+
+    Private Sub txtFind_KeyDown(sender As Object, e As KeyEventArgs) Handles txtFind.KeyDown
+        Select Case e.KeyCode
+            Case Keys.Enter
+                If e.Shift = True Then
+                    'Previous
+                    FindTextInWebPage(False)
+                Else
+                    'Next
+                    FindTextInWebPage(True)
+                End If
+
+            Case Keys.F3
+                If e.Shift = True Then
+                    'Previous
+                    FindTextInWebPage(False)
+                Else
+                    'Next
+                    FindTextInWebPage(True)
+                End If
+
+            Case Keys.Escape
+                'ESC: Close find panel
+                btnFindClose_Click(Nothing, Nothing)
+        End Select
+    End Sub
+
+    Private m_bFirstFind As Boolean = True
+    Private m_strFindText As String = ""
+    Private Sub FindTextInWebPage(bNext As Boolean)
+        If Me.txtFind.Text.Length > 0 Then
+            'Has the find string changed?
+            If m_strFindText = Me.txtFind.Text Then
+                m_bFirstFind = False
+            Else
+                m_strFindText = Me.txtFind.Text
+                m_bFirstFind = True
+            End If
+            'Find
+            CefSharp.WebBrowserExtensions.Find(Me.browser, 0, m_strFindText, bNext, False, Not m_bFirstFind)
+
+        Else
+            CefSharp.WebBrowserExtensions.StopFinding(Me.browser, True)
+            m_strFindText = ""
+        End If
+        Me.txtFind.Focus()
+    End Sub
+
+    Private Sub btnFindClose_Click(sender As Object, e As EventArgs) Handles btnFindClose.Click
+        CefSharp.WebBrowserExtensions.StopFinding(Me.browser, True)
+        m_strFindText = ""
+        Me.pnlFind.Visible = False
+    End Sub
+
     'Open URL with the specified settings
     Public Async Function OpenURL(sURL As String, Optional bShowErrorDialogBoxes As Boolean = False) As Threading.Tasks.Task(Of Boolean)
         Try
             'Load the web page
             If sURL.Length > 0 And Uri.IsWellFormedUriString(sURL, UriKind.RelativeOrAbsolute) = True Then
                 Me.txtURL.Text = sURL
+
+                'WORKAROUND: FAH Web Control, where it gets stuck in an infinite refresh loop in Chrome v59+, and needs a refresh without cache to fix that condition. This error also occurs almost every time you leave the FAH web control page, so avoid reloading when clicking other web link buttons or exiting.
+                If Me.txtURL.Text = URL_FAH_Client Then
+                    m_bLoadingFAHWebControl = True
+                Else
+                    m_bLoadingFAHWebControl = False
+                End If
 
                 'Accept Certs to avoid annoying prompts
                 System.Net.ServicePointManager.ServerCertificateValidationCallback = New Net.Security.RemoteCertificateValidationCallback(AddressOf ValidateCertificate)

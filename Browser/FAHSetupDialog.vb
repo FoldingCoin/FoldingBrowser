@@ -291,7 +291,7 @@
                 Me.lblErrorNote.Visible = True
             End If
 
-            'Check for characters not allowed in a FAH Username. See: http://folding.stanford.edu/support/faq/stats-teams-usernames/#are-there-any-characters-i-should-avoid-in-a-username  NOTE: Should only be letters, numbers, and underscore. Cannot be: # ^ ~ |  Also, Email addresses are truncated / not handled well, so block '@'. See: http://folding.stanford.edu/support/faq/stats-teams-usernames/#how-do-i-choose-a-username
+            'Check for characters not allowed in a FAH Username. See: https://foldingathome.org/support/faq/stats-teams-usernames/#are-there-any-characters-i-should-avoid-in-a-username  NOTE: Should only be letters, numbers, and underscore. Cannot be: # ^ ~ |  Also, Email addresses are truncated / not handled well, so block '@'. See: https://foldingathome.org/support/faq/stats-teams-usernames/#how-do-i-choose-a-username
             Select Case True
                 Case Me.txtUsername.Text.Length = 0
                     'Allow old Bitcoin address only format
@@ -604,7 +604,7 @@
                             g_Main.Msg("Telnet stopped on " & Me.txtAddress.Text & ":" & Me.txtPort.Text)
                         End If
                     Else
-                        Dim strMsg As String = "Telnet Error: Client didn't connect. Check your connection settings"
+                        Dim strMsg As String = "Telnet Error: Client didn't connect. Check your connection settings for Folding@Home." & vbNewLine & "Please verify the Folding@Home software is running, and try again."
                         g_Main.Msg(strMsg)
                         MessageBox.Show(strMsg)
                     End If
@@ -620,7 +620,7 @@
             End If
 
         Catch ex As Exception
-            Dim strMsg As String = "Telnet Error: " & ex.Message.ToString
+            Dim strMsg As String = "Telnet error while connecting to the Folding@Home software:" & vbNewLine & ex.Message.ToString & vbNewLine & vbNewLine & "-Please verify the Folding@Home software is running, and then try again."
             g_Main.Msg(strMsg)
             MessageBox.Show(strMsg)
         End Try
@@ -656,6 +656,7 @@
 
                 'Create text from the INI, Encrypt, and Write/flush DAT text to file
                 SaveDat(Encrypt(DAT.SaveToString))
+                Await Wait(100)
                 DAT = Nothing
 
                 'Make sure the INI key/value exists
@@ -665,10 +666,6 @@
                     INI.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(INI_WalletName).Value = DefaultWalletName & g_Main.cbxWalletId.Text
                 End If
 
-                'Store FAH Username
-                If Me.lblUsernamePreview.Text.Length > 0 Then
-                    INI.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(INI_FAH_Username).Value = Me.lblUsernamePreview.Text
-                End If
                 INI.Save(IniFilePath)
                 Await Wait(100)
                 'Refresh the Wallet Names

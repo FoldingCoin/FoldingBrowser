@@ -1,12 +1,12 @@
 ; Edit this installer script with HM NIS Edit.
 ; Requires that NSIS (Nullsoft Scriptable Install System) compiler be installed.
-; Copyright © 2017 FoldingCoin Inc
+; Copyright © 2018 FoldingCoin, CureCoin
 
 
 ;---- Helper defines / constants ----
-!define PRODUCT_VERSION "15"  ;Match the displayed version in the program title. Example: 1.2.3
-!define PRODUCT_4_VALUE_VERSION "15.0.0.0"  ;Match the executable version: Right-click the program executable file | Properties | Version. Example: 1.2.3.4
-!define PRODUCT_YEAR "2017"
+!define PRODUCT_VERSION "17"  ;Match the displayed version in the program title. Example: 1.2.3
+!define PRODUCT_4_VALUE_VERSION "17.0.0.0"  ;Match the executable version: Right-click the program executable file | Properties | Version. Example: 1.2.3.4
+!define PRODUCT_YEAR "2018"
 !define PRODUCT_NAME "FoldingBrowser"
 !define PRODUCT_EXE_NAME "FoldingBrowser"  ;Executable name without extension
 !define PRODUCT_PUBLISHER "FoldingBrowser"
@@ -153,7 +153,7 @@ Unicode true   ;For all languages to display properly (Installer won't run on Wi
 
 ;---- Installer Info ----
 Name "${PRODUCT_NAME} v${PRODUCT_VERSION}"
-OutFile "Installer\Install_${PRODUCT_NAME}_v${PRODUCT_VERSION}.exe"
+OutFile "Installer\Install-${PRODUCT_NAME}-v${PRODUCT_VERSION}.exe"
 BrandingText "${PRODUCT_PUBLISHER}"
 InstallDir "$PROGRAMFILES\${PRODUCT_NAME}"  ;Default installation folder (Set to: $INSTDIR during MUI_PAGE_DIRECTORY)
 InstallDirRegKey HKLM "${PRODUCT_DIR_REGKEY}" ""
@@ -201,8 +201,7 @@ Section "!${PRODUCT_NAME} v${PRODUCT_VERSION}" SEC01
   File "..\Browser\bin\Release\libEGL.dll"
   File "..\Browser\bin\Release\libGLESv2.dll"
   File "..\Browser\bin\Release\LICENSE.txt"
-  File "..\Browser\bin\Release\natives_blob.bin"
-  File "..\Browser\bin\Release\snapshot_blob.bin"
+  File "..\Browser\bin\Release\*.bin"
   File "..\Browser\bin\Release\widevinecdmadapter.dll"
 
   SetOutPath "$INSTDIR\Licenses"  ;Destination
@@ -210,6 +209,9 @@ Section "!${PRODUCT_NAME} v${PRODUCT_VERSION}" SEC01
   
   SetOutPath "$INSTDIR\locales"  ;Destination
   File "..\Browser\bin\Release\locales\*.pak"
+
+  SetOutPath "$INSTDIR\swiftshader"  ;Destination
+  File "..\Browser\bin\Release\swiftshader\*.dll"
 
   ;Create program shortcuts
   SetShellVarContext all  ;Uninstall shortcuts from the 'All Users' folder (WinXP only), otherwise uninstall shortcuts from the user's folder
@@ -278,12 +280,34 @@ UninstallFinished:
   Abort
 NETFrameworkInstalled:
 
-  ;Test if the Microsoft Visual C++ 2013 (x86) Redistributable is installed, and popup a message if it's not. Required by the CefSharp component
-  ReadRegStr $3 HKLM "SOFTWARE\Wow6432Node\Microsoft\VisualStudio\12.0\VC\Runtimes\x86" "Installed"
+  ;Test if the Microsoft Visual C++ 2015 (x86) Redistributable is installed, and try to install it if it's not. Required by the CefSharp component
+  ReadRegStr $3 HKLM "SOFTWARE\Wow6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x86" "Installed"
   StrCmp $3 1 VCRedistributableInstalled
-  ReadRegStr $3 HKLM "SOFTWARE\Microsoft\VisualStudio\12.0\VC\Runtimes\x86" "Installed"
+  ReadRegStr $3 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86" "Installed"
   StrCmp $3 1 VCRedistributableInstalled
-  MessageBox MB_YESNO|MB_ICONEXCLAMATION "Please install the Microsoft Visual C++ 2013 (x86) Redistributable.$\r$\n${PRODUCT_NAME} v${PRODUCT_VERSION} will not run without it.$\r$\n$\r$\nContinue installing ${PRODUCT_NAME} v${PRODUCT_VERSION}?" /SD IDYES IDYES VCRedistributableInstalled IDNO 0
+
+  MessageBox MB_OK "Installing the missing Microsoft Visual C++ 2015 (x86) Redistributable may take about 1 minute."
+  ;Destination: $PLUGINSDIR is a temporary folder that is automatically deleted when the installer exits
+  SetOutPath "$PLUGINSDIR"
+  File "VCx86Redist\vc_redist.x86.exe"
+
+  ;Initializes the plugins directory ($PLUGINSDIR) if it's not already initialized.
+  InitPluginsDir
+
+  ;Run the VC++ 2015 (x86) Redist. installer. For silent install use: /install /quiet /norestart
+  ExecWait '"$PLUGINSDIR\vc_redist.x86.exe" /install /quiet /norestart' $4
+  IntCmp $4 0 MsVCInstEnd  ;Skip error message if the installation was OK
+  StrCpy $5 "MS VC++ 2015 (x86) Redist install error: $4 (undefined = error running exe, 0 = no error, 1 = cancel button, 2 = aborted by script)"
+  MessageBox MB_OK "$5" /SD IDOK
+  DetailPrint $5
+MsVCInstEnd:
+
+  ;Test if the Microsoft Visual C++ 2015 (x86) Redistributable is installed, and popup a message if it's not. Required by the CefSharp component
+  ReadRegStr $3 HKLM "SOFTWARE\Wow6432Node\Microsoft\VisualStudio\14.0\VC\Runtimes\x86" "Installed"
+  StrCmp $3 1 VCRedistributableInstalled
+  ReadRegStr $3 HKLM "SOFTWARE\Microsoft\VisualStudio\14.0\VC\Runtimes\x86" "Installed"
+  StrCmp $3 1 VCRedistributableInstalled
+  MessageBox MB_YESNO|MB_ICONEXCLAMATION "Please install the Microsoft Visual C++ 2015 (x86) Redistributable.$\r$\n${PRODUCT_NAME} v${PRODUCT_VERSION} will not run without it.$\r$\n$\r$\nContinue installing ${PRODUCT_NAME} v${PRODUCT_VERSION}?" /SD IDYES IDYES VCRedistributableInstalled IDNO 0
   Abort
 VCRedistributableInstalled:
 FunctionEnd
@@ -420,6 +444,8 @@ Section Uninstall
   RMDir "$INSTDIR\Licenses"
   Delete "$INSTDIR\locales\*"
   RMDir "$INSTDIR\locales"
+  Delete "$INSTDIR\swiftshader\*"
+  RMDir "$INSTDIR\swiftshader"
   ;Delete the main installation folder if possible
   Delete "$INSTDIR\*"
   RMDir "$INSTDIR"
