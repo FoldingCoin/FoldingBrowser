@@ -3,10 +3,12 @@ Public Module GlobalRefs
 
     'Don't change this:
     Public Const Prog_Name As String = "FoldingBrowser"
+    Public g_strTitleEnd As String = Prog_Name & " v" & My.Application.Info.Version.Major.ToString
 
     'Common URLs
     Public Const URL_BLANK As String = "about:blank"
-    Public Const URL_Portal As String = "data:local"
+    Public Const URL_Homepage_TopAndBottom As String = "data:home"
+    Public Const URL_Homepage_SideBySide As String = "data:local"
     Public Const URL_Counterwallet As String = "https://wallet.counterwallet.io/"
     Public Const URL_CoinDaddyCounterwallet As String = "https://counterwallet.coindaddy.io/"
     Public Const CounterwalletAPI As String = "_api/"
@@ -15,12 +17,13 @@ Public Module GlobalRefs
     Public Const URL_FoldingCoinTwitter As String = "https://twitter.com/FoldingCoin/"
     Public Const URL_FLDC_DefaultBlockchain As String = "https://xchain.io/asset/FLDC"
     Public Const URL_FLDC_AddressBlockchain As String = "https://xchain.io/address/"
-    Public Const URL_BTC_Blockchain As String = "https://blockchain.info/"
-    Public Const URL_FLDC_Distro As String = "http://foldingcoin.xyz/?token=FLDC&total=250000&start="
+    Public Const URL_BTC_Blockchain As String = "https://www.blockchain.com/"
+    Public Const URL_FLDC_Distro As String = "https://mergedfolding.net/official-distributions"
     Public Const URL_FoldingCoinDiscordInvite As String = "https://discord.gg/CvZ7gAs"
     Public Const URL_FoldingCoinDiscordRegister As String = "https://discordapp.com/register?redirect_to=%2Finvite%2FCvZ7gAs"
     Public Const URL_FoldingCoinDiscord As String = "https://discordapp.com/channels/379168590626029568/379168590626029571"
-    Public Const URL_FoldingCoinShop As String = "https://tokenmarkets.com/catalog/foldingcoin"
+    Public Const URL_FoldingCoinStats As String = "https://stats.mergedfolding.net/"
+    Public Const URL_FoldingCoinStatsUser As String = "member/"
 
     Public Const URL_CureCoin As String = "https://curecoin.net/"
     Public Const URL_CureCoinTwitter As String = "https://twitter.com/CureCoin_Team/"
@@ -29,20 +32,44 @@ Public Module GlobalRefs
     Public Const URL_CureCoinDiscordInvite As String = "https://discord.gg/jtztkFZ"
     Public Const URL_CureCoinDiscordRegister As String = "https://discordapp.com/register?redirect_to=%2Finvite%2FjtztkFZ"
     Public Const URL_CureCoinDiscord As String = "https://discordapp.com/channels/376037868826525707/376037869728563201"
-
-    Public Const URL_EOC As String = "http://folding.extremeoverclocking.com/user_summary.php?s=&u="
     Public Const URL_CureCoin_EOC As String = "http://folding.extremeoverclocking.com/team_summary.php?s=&t=224497"
 
-    Public Const URL_FAH As String = "https://foldingathome.org/start-folding/"
-    Public Const URL_FAH_Client As String = "http://client.foldingathome.org/"
-    Public Const URL_NaCl_FAH As String = "http://nacl.foldingathome.org/"
+    Public Const URL_EOC As String = "http://folding.extremeoverclocking.com/user_summary.php?s=&u="
 
-    'This HTML is easier to view in source code file: FoldingBrowser.html
-    Public Const HTML_PortalPage As String = "<html><head><title>FoldingBrowser - Earn Digital Assets with FoldingCoin and CureCoin</title></head>
-        <body style='background-color:#000000;'><a href='http://foldingcoin.net/' style='float:left;width:49%;height:98%;border-style:solid;border-width:1px;border-color:white;z-index:1;'>
-        <span><object type='text/html' data='http://foldingcoin.net/' style='width:100%;height:100%;z-index:-1;pointer-events:none;'>FoldingCoin Homepage</object></span></a>
+    Public Const URL_FAH As String = "https://foldingathome.org/"
+    Public Const URL_FAH_DL As String = "start-folding/"
+    Public Const URL_FAH_News As String = "news/"
+    Public Const URL_FAHTwitter As String = "https://twitter.com/foldingathome/"
+    Public Const URL_FAH_Passkey As String = "https://apps.foldingathome.org/getpasskey?name="
+    Public Const URL_FAH_WebClient_URL As String = "http://client.foldingathome.org/"
+    Public Const URL_FAH_WebClient_IPAddr As String = "http://127.0.0.1:7396/?nocache="
+    Public Const URL_FAH_WebClient_ErrorAddr As String = "http://127.0.0.1:7396/js/main.js"
+
+    'HTML from source code file: FoldingBrowser-SideBySide.html
+    Public Const HTML_Homepage_SideBySide As String =
+    "<html><head><title>FoldingBrowser - Earn Digital Assets with FoldingCoin and CureCoin</title></head>
+    <body style='background-color:#000000;'>
+        <a href='https://foldingcoin.net/' style='float:left;width:49%;height:98%;border-style:solid;border-width:1px;border-color:white;z-index:1;'>
+            <span><object type='text/html' data='https://foldingcoin.net/' style='width:100%;height:100%;z-index:-1;pointer-events:none;'>FoldingCoin Homepage</object></span>
+        </a>
         <a href='https://curecoin.net/' style='float:right;width:49%;height:98%;border-style:solid;border-width:1px;border-color:white;z-index:1;'>
-        <span><object type='text/html' data='https://curecoin.net/' style='width:100%;height:100%;z-index:-1;pointer-events:none;'>CureCoin Homepage</object></span></a></body></html>"
+            <span><object type='text/html' data='https://curecoin.net/' style='width:100%;height:100%;z-index:-1;pointer-events:none;'>CureCoin Homepage</object></span>
+        </a>
+    </body></html>"
+
+    'HTML from source code file: FoldingBrowser-TopAndBottom.html
+    Public Const HTML_Homepage_TopAndBottom As String =
+    "<html><head><title>FoldingBrowser - Earn Digital Assets with FoldingCoin and CureCoin</title></head>
+    <body style='background-color:#000000;'>
+        <div style='float:left;width:100%;height:1%;z-index:1'></div>
+        <a href='https://foldingcoin.net/' style='float:left;width:100%;height:48%;border-style:solid;border-width:1px;border-color:white;z-index:1;'>
+            <span><object type='text/html' data='https://foldingcoin.net/' style='width:100%;height:100%;z-index:-1;pointer-events:none;'>FoldingCoin Homepage</object></span>
+        </a>
+        <div style='float:left;width:100%;height:2%;z-index:1'></div>
+        <a href='https://curecoin.net/' style='float:left;width:100%;height:48%;border-style:solid;border-width:1px;border-color:white;z-index:1;'>
+            <span><object type='text/html' data='https://curecoin.net/' style='width:100%;height:100%;z-index:-1;pointer-events:none;'>CureCoin Homepage</object></span>
+        </a>
+    </body></html>"
 
     'Encrypted DAT file password
     Public Const Default_DAT_PW As String = "(Default Password) If you change this line, remember to make backups. I can't restore it for you."
@@ -59,7 +86,6 @@ Public Module GlobalRefs
 
     Public Const DAT_CureCoin_Pwd As String = "CureCoinPoolPassword"
     Public Const DAT_CureCoin_Pin As String = "CureCoinPoolPin"
-    Public Const DAT_CureCoin_Wallet_Version As String = "CureCoinWalletVersion"
     Public Const DAT_CureCoin_Addr As String = "CureCoinAddress"
 
     Public Const DAT_DiscordEmail As String = "DiscordEmail"
@@ -79,6 +105,9 @@ Public Module GlobalRefs
     Public Const INI_LastBrowserVersion As String = "LastBrowserVersion"
     Public Const INI_HideSavedDataButton As String = "HideSavedDataButton"
     Public Const INI_Homepage As String = "Homepage"
+    Public Const INI_ShowPanelOnMouseEnter As String = "ShowPanelOnMouseEnter"
+    Public Const INI_DarkThemeUI As String = "DarkThemeUI"
+    Public Const INI_RevCWServers As String = "RevCWServers"
 
     'Wallet Id specific
     Public Const INI_EOC_ID As String = "ExtremeOverclockingUserId"
@@ -87,26 +116,47 @@ Public Module GlobalRefs
 
     'Homepage Options List
     Public Const HpgDefault As String = "Default"
+    Public Const HpgSideBySide As String = "Side-By-Side: FoldingCoin and CureCoin"
+    Public Const HpgTopBottom As String = "Top-Bottom: FoldingCoin and CureCoin"
     Public Const HpgFoldingCoin As String = "FoldingCoin"
+    Public Const HpgFoldingCoinTeamStats As String = "FoldingCoin: Team Stats"
+    Public Const HpgFoldingCoinMyStats As String = "FoldingCoin: My Stats"
     Public Const HpgCureCoin As String = "CureCoin"
-    Public Const HpgEOC As String = "EOC"
+    Public Const HpgCureCoinTeamStatsEOC As String = "CureCoin: Team Stats from EOC"
+    Public Const HpgMyStatsEOC As String = "My Stats from EOC"
+    Public Const HpgEOC As String = "EOC"  'This is depreciated in v18(don't show in pull-down list). Use 'My Stats from EOC' instead
     Public Const HpgFAH As String = "Folding@Home Web Control"
-    Public Const HpgNaClFAH As String = "Folding@Home NaCl"
     Public Const HpgBlank As String = "Blank"
 
     'Website title to search for
     Public Const NameCryptoBullions As String = "CryptoBullions"
+    Public Const NameCounterwallet As String = "Counterwallet"
+    'Search strings
+    Public Const FAH_Version As String = "Version"
+    Public Const FAH_Client As String = "FAHClient"
+    Public Const FAH_Core As String = "fahcore_"
 
     Public UserProfileDir As String = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), Prog_Name)
     Public IniFilePath As String = System.IO.Path.Combine(UserProfileDir, Prog_Name & ".ini")
     Public DatFilePath As String = System.IO.Path.Combine(UserProfileDir, Prog_Name & ".dat")
     Public LogFilePath As String = System.IO.Path.Combine(UserProfileDir, Prog_Name & ".txt")
 
+    'Font scalar for resizing the entire for for different scaling percentages
+    Public Const DefaultFontScalar As Single = 1.0!
+    Public g_sScaleFactor As Single = 1.0!
     'Cancel navigation / downloads indicator
     Public g_bCancelNav As Boolean = False
     Public g_bAskDownloadLocation As Boolean = True
     'Holds on to the last downloaded file path, when the download completes
     Public g_strDownloadedFilePath As String = ""
+    'CounterWallet
+    Public g_bRevCWServers As Boolean = True
+
+    'Option to Show the Web Link Panel On MouseEnter Event
+    Public g_bShowWebLinkPanelOnMouseEnterEvent As Boolean = True
+
+    'Event logging date-time stamp format string
+    Public Const LogDateTimeFormat As String = "yyyy-MM-dd HH:mm:ss.f"
 
     Public Function SaveLogFile(ByRef strMsg As String) As Boolean
         SaveLogFile = False
@@ -157,7 +207,7 @@ End Module
 'File download, see: https://github.com/cefsharp/CefSharp/blob/master/CefSharp.Example/DownloadHandler.cs
 Public Class DownloadHandler
     Implements CefSharp.IDownloadHandler
-    Public Sub OnBeforeDownload(browser As CefSharp.IBrowser, downloadItem As CefSharp.DownloadItem, callback As CefSharp.IBeforeDownloadCallback) Implements CefSharp.IDownloadHandler.OnBeforeDownload
+    <CLSCompliant(False)> Public Sub OnBeforeDownload(webBrowser As CefSharp.IWebBrowser, browser As CefSharp.IBrowser, downloadItem As CefSharp.DownloadItem, callback As CefSharp.IBeforeDownloadCallback) Implements CefSharp.IDownloadHandler.OnBeforeDownload
         'Reset the downloaded file path at the start of downloading the file
         g_strDownloadedFilePath = ""
         g_bCancelNav = False
@@ -168,7 +218,7 @@ Public Class DownloadHandler
         End If
     End Sub
 
-    Public Sub OnDownloadUpdated(browser As CefSharp.IBrowser, downloadItem As CefSharp.DownloadItem, callback As CefSharp.IDownloadItemCallback) Implements CefSharp.IDownloadHandler.OnDownloadUpdated
+    <CLSCompliant(False)> Public Sub OnDownloadUpdated(webBrowser As CefSharp.IWebBrowser, browser As CefSharp.IBrowser, downloadItem As CefSharp.DownloadItem, callback As CefSharp.IDownloadItemCallback) Implements CefSharp.IDownloadHandler.OnDownloadUpdated
         If callback.IsDisposed = False Then
             'Stop the download if Navigation canceled or <Esc> was pressed
             If g_bCancelNav = True Then
@@ -190,7 +240,7 @@ End Class
 'Keypress example, see: https://github.com/cefsharp/CefSharp/blob/master/CefSharp.WinForms.Example/Handlers/KeyboardHandler.cs
 Public Class KeyboardHandler
     Implements CefSharp.IKeyboardHandler
-    Public Function OnPreKeyEvent(browserControl As CefSharp.IWebBrowser, browser As CefSharp.IBrowser, type As CefSharp.KeyType, windowsKeyCode As Integer, nativeKeyCode As Integer, modifiers As CefSharp.CefEventFlags, isSystemKey As Boolean, ByRef isKeyboardShortcut As Boolean) As Boolean Implements CefSharp.IKeyboardHandler.OnPreKeyEvent
+    <CLSCompliant(False)> Public Function OnPreKeyEvent(browserControl As CefSharp.IWebBrowser, browser As CefSharp.IBrowser, type As CefSharp.KeyType, windowsKeyCode As Integer, nativeKeyCode As Integer, modifiers As CefSharp.CefEventFlags, isSystemKey As Boolean, ByRef isKeyboardShortcut As Boolean) As Boolean Implements CefSharp.IKeyboardHandler.OnPreKeyEvent
         If type = CefSharp.KeyType.RawKeyDown Then
             Select Case windowsKeyCode
                 'Browser active control event: Press ESC to cancel Navigation, F5 to Refresh, CTRL+F5 to Clear Cache, ALT+Left for Navigate Back, ALT+Right for Navigate Forward, F12 for Web Tools
@@ -219,7 +269,7 @@ Public Class KeyboardHandler
         Return False
     End Function
 
-    Public Function OnKeyEvent(browserControl As CefSharp.IWebBrowser, browser As CefSharp.IBrowser, type As CefSharp.KeyType, windowsKeyCode As Integer, nativeKeyCode As Integer, modifiers As CefSharp.CefEventFlags, isSystemKey As Boolean) As Boolean Implements CefSharp.IKeyboardHandler.OnKeyEvent
+    <CLSCompliant(False)> Public Function OnKeyEvent(browserControl As CefSharp.IWebBrowser, browser As CefSharp.IBrowser, type As CefSharp.KeyType, windowsKeyCode As Integer, nativeKeyCode As Integer, modifiers As CefSharp.CefEventFlags, isSystemKey As Boolean) As Boolean Implements CefSharp.IKeyboardHandler.OnKeyEvent
         Return False
     End Function
 End Class

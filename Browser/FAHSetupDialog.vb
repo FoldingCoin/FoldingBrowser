@@ -4,7 +4,7 @@
     Public m_bInitialInstall As Boolean = False
 
     Private Const PATH_FAH_ALL_USER_CFG As String = "C:\ProgramData\FAHClient\config.xml"
-    Private Const PAUSE_FAH As String = "options idle=true open-web-control=false"  'Disabling the web control popup doesn't happen soon enough to stop it
+    Private Const PAUSE_FAH As String = "options idle=true open-web-control=false"  'Disabling the web control pop-up doesn't happen soon enough to stop it
     Private Path_FAH_CurrentUserCfg As String = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FAHClient\config.xml")
     Private m_strFAHCfgPath As String = ""
 
@@ -19,6 +19,18 @@
     Private Sub FAHSetupDialog_Load(sender As Object, e As EventArgs) Handles Me.Load
         Dim strTeam As String = ""
         Me.Icon = My.Resources.L_cysteine_16_24_32_48_256
+
+        'Set the new font scalar to resize the form (For display scaling percentages other than 100% / 96 DPI)
+        If g_sScaleFactor <> DefaultFontScalar Then
+            'Scale font. This will force the child controls to resize and scale fonts (as long as they are the default font)
+            Me.Font = New Font(Me.Font.FontFamily, Me.Font.Size * g_sScaleFactor, Me.Font.Style)
+        End If
+
+        'Make the step numbers large after the form gets scaled
+        Me.lbl1.Font = New Font(Me.lbl1.Font.FontFamily, Me.lbl1.Font.Size * 3.5!, FontStyle.Bold)
+        Me.lbl2.Font = Me.lbl1.Font
+        Me.lbl3.Font = Me.lbl1.Font
+        Me.lbl4.Font = Me.lbl1.Font
 
         'Hide the form while it's being adjusted
         Me.WindowState = FormWindowState.Minimized
@@ -64,8 +76,8 @@
             'Try loading a stored Username first, if it exists already
             If Me.txtUsername.Text.Length = 0 Then
                 Try
-                    If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Username) IsNot Nothing Then
-                        Me.txtUsername.Text = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Username).GetValue()
+                    If DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_FAH_Username) IsNot Nothing Then
+                        Me.txtUsername.Text = DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_FAH_Username).GetValue()
                     End If
                 Catch ex As Exception
                     g_Main.Msg("FAH Cfg: Error loading Username: " & ex.Message.ToString)
@@ -75,8 +87,8 @@
             'Try loading the CounterWallet Bitcoin (BTC) address
             If Me.txtBitcoinAddress.Text.Length = 0 Then
                 Try
-                    If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_BTC_Addr) IsNot Nothing Then
-                        Me.txtBitcoinAddress.Text = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_BTC_Addr).GetValue()
+                    If DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_BTC_Addr) IsNot Nothing Then
+                        Me.txtBitcoinAddress.Text = DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_BTC_Addr).GetValue()
                     End If
                 Catch ex As Exception
                     g_Main.Msg("FAH Cfg: Error loading BTC Address: " & ex.Message.ToString)
@@ -85,8 +97,8 @@
 
             'Try loading the FAH Team #
             Try
-                If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Team) IsNot Nothing Then
-                    strTeam = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Team).GetValue()
+                If DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_FAH_Team) IsNot Nothing Then
+                    strTeam = DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_FAH_Team).GetValue()
                     If strTeam = "224497" Then
                         Me.rbnCureCoin.Checked = True
                     ElseIf strTeam = "226728" Then
@@ -102,8 +114,8 @@
             'Try loading the Email Address, if it exists already
             If Me.txtEmail.Text.Length = 0 Then
                 Try
-                    If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_Email) IsNot Nothing Then
-                        Me.txtEmail.Text = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_Email).GetValue()
+                    If DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_Email) IsNot Nothing Then
+                        Me.txtEmail.Text = DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_Email).GetValue()
                     End If
                 Catch ex As Exception
                     g_Main.Msg("FAH Cfg: Error loading Email Address: " & ex.Message.ToString)
@@ -113,8 +125,8 @@
             'Try loading the Passkey, if it exists already
             If Me.txtPasskey.Text.Length = 0 Then
                 Try
-                    If DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Passkey) IsNot Nothing Then
-                        Me.txtPasskey.Text = DAT.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(DAT_FAH_Passkey).GetValue()
+                    If DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_FAH_Passkey) IsNot Nothing Then
+                        Me.txtPasskey.Text = DAT.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(DAT_FAH_Passkey).GetValue()
                     End If
                 Catch ex As Exception
                     g_Main.Msg("FAH Cfg: Error loading Passkey: " & ex.Message.ToString)
@@ -175,18 +187,25 @@
             End If
         Else
             Me.txtXmlBefore.Text = "No Config.xml"
+            Me.txtCfgPath.Text = ""
         End If
 
         'Turn on auto-updating the settings, now that any existing info was loaded
         m_bSkipUpdating = False
         CreateFAHUserName()
-        Me.chkShowFAHCfg.Checked = False
 
-        'Disable the OK button until settings are saved. NOTE: Pausing FAH with Telent is not Awaited above, and was undoing this on an initial install
+        'Disable the OK button until settings are saved. NOTE: Pausing FAH with Telnet is not Awaited above, and was undoing this on an initial install
         Me.btnOK.Enabled = False
+
+        'Set for initial state
+        Me.SplitContainer2.SplitterWidth = 2
+        Me.SplitContainer1.SplitterWidth = 2
 
         'Make the main form visible
         Me.WindowState = FormWindowState.Normal
+
+        'Update some window positions
+        Me.chkShowFAHCfg.Checked = False
     End Sub
 #End Region
 
@@ -205,14 +224,14 @@
     Private Sub CreateFAHUserName()
         If m_bSkipUpdating = False Then
             'Reset errors, and colors to be good
-            Me.rbnFoldingCoin.BackColor = Color.FromKnownColor(KnownColor.Control)
-            Me.rbnCureCoin.BackColor = Color.FromKnownColor(KnownColor.Control)
+            Me.rbnFoldingCoin.BackColor = Color.FromKnownColor(KnownColor.Window)
+            Me.rbnCureCoin.BackColor = Color.FromKnownColor(KnownColor.Window)
             Me.lblErrorNote.Visible = False
-            Me.lblUsernamePreview.BackColor = Color.White
-            Me.txtUsername.BackColor = Color.White
-            Me.cbxSeparator.BackColor = Color.White
-            Me.txtBitcoinAddress.BackColor = Color.White
-            Me.txtTelnetFAHCfg.BackColor = Color.White
+            Me.lblUsernamePreview.BackColor = Color.FromKnownColor(KnownColor.Window)
+            Me.txtUsername.BackColor = Color.FromKnownColor(KnownColor.Window)
+            Me.cbxSeparator.BackColor = Color.FromKnownColor(KnownColor.Window)
+            Me.txtBitcoinAddress.BackColor = Color.FromKnownColor(KnownColor.Window)
+            Me.txtTelnetFAHCfg.BackColor = Color.FromKnownColor(KnownColor.Window)
 
             'Allow existing Username entry in first dialog. Then parse it out in to the other fields. Look for 1 or 2 underscores
             If Me.txtUsername.Text.Contains("_") = True Then
@@ -225,7 +244,7 @@
                     Me.txtUsername.Text = strDim(0)
                     Exit Sub
 
-                ElseIf strDim(1).Length >= 26 AndAlso strDim(1).Length <= 35 AndAlso (strDim(1).StartsWith("1") = True OrElse strDim(1).StartsWith("3") = True) Then
+                ElseIf (strDim(1).Length >= 26 AndAlso strDim(1).Length <= 35 AndAlso (strDim(1).StartsWith("1") = True OrElse strDim(1).StartsWith("3") = True)) OrElse (strDim(1).StartsWith("bc1") = True AndAlso strDim(1).Length <= 90) Then
                     'New format. Only process if the second part is a Bitcoin address
                     Me.cbxSeparator.Text = "_"
                     Me.txtBitcoinAddress.Text = strDim(1)
@@ -262,33 +281,41 @@
                 End If
             End If
 
-            'Bitcoin address info, see: https://en.bitcoin.it/wiki/Address
-            'CounterParty Bitcoin Address: Must be 26-35 characters (typically 34 characters) in Base58 encoding (excludes: 0, O, I, l characters that look similar)
-            If Me.txtBitcoinAddress.Text.Length >= 26 AndAlso Me.txtBitcoinAddress.Text.Length <= 35 Then
-                'CounterParty Bitcoin Address: Must start with '1' (typical) or '3' (Multisig)
-                If Me.txtBitcoinAddress.Text.StartsWith("1") = True OrElse Me.txtBitcoinAddress.Text.StartsWith("3") = True Then
-                    'CounterParty Bitcoin Address: Check for invalid characters
-                    If m_regexBTC.IsMatch(Me.txtBitcoinAddress.Text) = True Then
-                        'CounterParty Bitcoin Address: Not all uppercase (very unlikely. Set as warning for now)
-                        If Me.txtBitcoinAddress.Text = Me.txtBitcoinAddress.Text.ToUpper Then
-                            Me.txtBitcoinAddress.BackColor = Color.Yellow
-                            Me.lblErrorNote.Text = "Counterparty Bitcoin Address: Typically not all uppercase"
+            'Bitcoin address info 'bc1' Segwit bech32 format: https://github.com/bitcoin/bips/blob/master/bip-0173.mediawiki
+            If Me.txtBitcoinAddress.Text.StartsWith("bc1") = True AndAlso Me.txtBitcoinAddress.Text.Length <= 90 Then
+                'Segwit bech32 'bc1' addresses are: Not currently supported by stats parser (or distributor?)
+                Me.txtBitcoinAddress.BackColor = Color.Tomato
+                Me.lblErrorNote.Text = "Counterparty Bitcoin Address: Must start with '1', not Segwit 'bc1'"
+                Me.lblErrorNote.Visible = True
+            Else
+                'Bitcoin address info, see: https://en.bitcoin.it/wiki/Address
+                'CounterParty Bitcoin Address: Must be 26-35 characters (typically 34 characters) in Base58 encoding (excludes: 0, O, I, l characters that look similar)
+                If Me.txtBitcoinAddress.Text.Length >= 26 AndAlso Me.txtBitcoinAddress.Text.Length <= 35 Then
+                    'CounterParty Bitcoin Address: Must start with: '1' (typical). Not currently supported by stats parser: '3' (Multisig)
+                    If Me.txtBitcoinAddress.Text.StartsWith("1") = True OrElse Me.txtBitcoinAddress.Text.StartsWith("3") = True Then
+                        'CounterParty Bitcoin Address: Check for invalid characters
+                        If m_regexBTC.IsMatch(Me.txtBitcoinAddress.Text) = True Then
+                            'CounterParty Bitcoin Address: Not all uppercase (very unlikely. Set as warning for now)
+                            If Me.txtBitcoinAddress.Text = Me.txtBitcoinAddress.Text.ToUpper Then
+                                Me.txtBitcoinAddress.BackColor = Color.Yellow
+                                Me.lblErrorNote.Text = "Counterparty Bitcoin Address: Typically not all uppercase"
+                                Me.lblErrorNote.Visible = True
+                            End If
+                        Else
+                            Me.txtBitcoinAddress.BackColor = Color.Tomato
+                            Me.lblErrorNote.Text = "Counterparty Bitcoin Address: Contains invalid characters"
                             Me.lblErrorNote.Visible = True
                         End If
                     Else
                         Me.txtBitcoinAddress.BackColor = Color.Tomato
-                        Me.lblErrorNote.Text = "Counterparty Bitcoin Address: Contains invalid characters"
+                        Me.lblErrorNote.Text = "Counterparty Bitcoin Address: Must start with '1'"
                         Me.lblErrorNote.Visible = True
                     End If
                 Else
                     Me.txtBitcoinAddress.BackColor = Color.Tomato
-                    Me.lblErrorNote.Text = "Counterparty Bitcoin Address: Must start with '1' (or '3')"
+                    Me.lblErrorNote.Text = "Counterparty Bitcoin Address: Typically 34 characters (26-35)"
                     Me.lblErrorNote.Visible = True
                 End If
-            Else
-                Me.txtBitcoinAddress.BackColor = Color.Tomato
-                Me.lblErrorNote.Text = "Counterparty Bitcoin Address: Typically 34 characters (26-35)"
-                Me.lblErrorNote.Visible = True
             End If
 
             'Check for characters not allowed in a FAH Username. See: https://foldingathome.org/support/faq/stats-teams-usernames/#are-there-any-characters-i-should-avoid-in-a-username  NOTE: Should only be letters, numbers, and underscore. Cannot be: # ^ ~ |  Also, Email addresses are truncated / not handled well, so block '@'. See: https://foldingathome.org/support/faq/stats-teams-usernames/#how-do-i-choose-a-username
@@ -307,7 +334,7 @@
                     Me.lblErrorNote.Visible = True
 
                 Case m_regexFAH_Warning.IsMatch(Me.lblUsernamePreview.Text) = True
-                    'This could be a warning, but it's safer to constrain the usernames to safe values, especially so the username might work in web link URLs, searches, databases, etc
+                    'This could be a warning, but it's safer to constrain the user names to safe values, especially so the username might work in web link URLs, searches, databases, etc
                     Me.txtUsername.BackColor = Color.Tomato
                     Me.lblErrorNote.Text = "Avoid special characters that may not work"
                     Me.lblErrorNote.Visible = True
@@ -328,9 +355,9 @@
                         If Me.rbnCureCoin.Checked = True Then
                             Me.lblUsernamePreview.BackColor = Color.Yellow
                             'Reset these error messages to allow this case, for CureCoin setup only
-                            Me.txtUsername.BackColor = Color.White
-                            Me.cbxSeparator.BackColor = Color.White
-                            Me.txtBitcoinAddress.BackColor = Color.White
+                            Me.txtUsername.BackColor = Color.FromKnownColor(KnownColor.Window)
+                            Me.cbxSeparator.BackColor = Color.FromKnownColor(KnownColor.Window)
+                            Me.txtBitcoinAddress.BackColor = Color.FromKnownColor(KnownColor.Window)
                             Me.lblErrorNote.Text = "NOTE: This username format can't earn FLDC"
                             Me.lblErrorNote.Visible = True
                         Else
@@ -359,17 +386,19 @@
                     End If
 
                 Case 1
-                    '1 underscore = New format, not ready yet
-                    Me.cbxSeparator.BackColor = Color.Tomato
-                    Me.lblErrorNote.Text = "New username format not enabled yet"
-                    Me.lblErrorNote.Visible = True
+                    '1 underscore = New format (User_Address) = good
+                    If Me.txtUsername.Text.Length = 0 Then
+                        Me.txtUsername.BackColor = Color.Tomato
+                        Me.lblErrorNote.Text = "Please select a username"
+                        Me.lblErrorNote.Visible = True
+                    End If
 
                 Case 2
                     'Typical for _ALL_ or _FLDC_ = good
                     If Me.cbxSeparator.Text <> "_ALL_" AndAlso Me.cbxSeparator.Text <> "_FLDC_" Then
                         Me.cbxSeparator.BackColor = Color.Tomato
                         Me.txtUsername.BackColor = Color.Tomato
-                        Me.lblErrorNote.Text = "Avoid new username format, or additional underscores"
+                        Me.lblErrorNote.Text = "Avoid additional underscores"
                         Me.lblErrorNote.Visible = True
                     End If
 
@@ -382,7 +411,7 @@
 
             'Passkey check: Must be 32 hexadecimal characters
             If Me.txtPasskey.Text.Length = 32 OrElse Me.txtPasskey.Text.Length = 0 Then
-                Me.txtPasskey.BackColor = Color.White
+                Me.txtPasskey.BackColor = Color.FromKnownColor(KnownColor.Window)
                 Me.lblPasskeyError.Visible = False
             Else
                 Me.txtPasskey.BackColor = Color.Tomato
@@ -430,15 +459,15 @@
             Select Case True
                 Case Me.rbnCureCoin.Checked
                     Me.lblTeamNumber.Text = "224497"
-                    Me.lblTeamNumber.BackColor = Color.White
+                    Me.lblTeamNumber.BackColor = Color.FromKnownColor(KnownColor.Window)
 
                 Case Me.rbnFoldingCoin.Checked
                     Me.lblTeamNumber.Text = "226728"
-                    Me.lblTeamNumber.BackColor = Color.White
+                    Me.lblTeamNumber.BackColor = Color.FromKnownColor(KnownColor.Window)
 
                 Case (Me.rbnOtherTeam.Checked = True AndAlso Me.txtOtherTeam.Text.Length > 0 AndAlso IsNumeric(Me.txtOtherTeam.Text) = True)
                     Me.lblTeamNumber.Text = Me.txtOtherTeam.Text.Trim
-                    Me.lblTeamNumber.BackColor = Color.White
+                    Me.lblTeamNumber.BackColor = Color.FromKnownColor(KnownColor.Window)
 
                 Case Else
                     Me.lblTeamNumber.BackColor = Color.Tomato
@@ -461,22 +490,26 @@
 #Region "Passkey Auto-Update"
     Private Sub txtEmail_TextChanged(sender As Object, e As EventArgs) Handles txtEmail.TextChanged
         'Reset the background color
-        Me.txtEmail.BackColor = Color.White
+        Me.txtEmail.BackColor = Color.FromKnownColor(KnownColor.Window)
     End Sub
 
-    'Run the script to send the Passkey. Web page: http://fah-web.stanford.edu/cgi-bin/getpasskey.py
+    'Run the web page to send the Passkey
     Private Async Sub btnGetPasskey_Click(sender As Object, e As EventArgs) Handles btnGetPasskey.Click
         'Check to see if email looks valid, and indicate if it isn't
         If Me.txtEmail.Text.Length > 5 AndAlso Me.txtEmail.Text.Contains("@") AndAlso Me.txtEmail.Text.Contains(".") Then
             'Temporarily disable the get passkey button
             Me.btnGetPasskey.Enabled = False
             'Reset the background color
-            Me.txtEmail.BackColor = Color.White
+            Me.txtEmail.BackColor = Color.FromKnownColor(KnownColor.Window)
 
             'Remove any white space at the beginning or end of the email address
             Me.txtEmail.Text = Me.txtEmail.Text.Trim
-            'Run the script to send the Passkey. Like: http://fah-web.stanford.edu/cgi-bin/getpasskey.py?name=[user]&email=[email]
-            If Await g_Main.GetFAHpasskey("http://fah-web.stanford.edu/cgi-bin/getpasskey.py?name=" & Me.lblUsernamePreview.Text & "&email=" & Me.txtEmail.Text) = True Then
+            'Run the web page to send the Passkey
+            If Await g_Main.GetFAHpasskey(URL_FAH_Passkey & Me.lblUsernamePreview.Text & "&email=" & Me.txtEmail.Text) = True Then
+                Await Wait(200)
+                'Click Get Passkey button (only button on the page)
+                Await g_Main.ClickByTag("button", 0, False)
+
                 'Good - Check your email
                 Dim OkMsg As New MsgBoxDialog
                 OkMsg.Text = "Check your email"
@@ -535,7 +568,7 @@
                                 Try
                                     Dim bRunning As Boolean = False
                                     Dim p As Process
-                                    For Each p In Process.GetProcessesByName("FAHClient")
+                                    For Each p In Process.GetProcessesByName(FAH_Client)
                                         g_Main.Msg("FAH is running at id: " & p.Id.ToString() & " - " & p.ProcessName)
                                         bRunning = True
                                         Exit For
@@ -649,10 +682,10 @@
                 End If
 
                 'Write out data to INI info
-                If Me.lblUsernamePreview.Text.Length > 0 Then DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_FAH_Username).Value = Me.lblUsernamePreview.Text
-                If Me.lblTeamNumber.Text.Length > 0 Then DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_FAH_Team).Value = Me.lblTeamNumber.Text
-                If Me.txtEmail.Text.Length > 0 Then DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_Email).Value = Me.txtEmail.Text
-                If Me.txtPasskey.Text.Length > 0 Then DAT.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(DAT_FAH_Passkey).Value = Me.txtPasskey.Text
+                If Me.lblUsernamePreview.Text.Length > 0 Then DAT.AddSection(Id & g_Main.cbxToolsWalletId.Text).AddKey(DAT_FAH_Username).Value = Me.lblUsernamePreview.Text
+                If Me.lblTeamNumber.Text.Length > 0 Then DAT.AddSection(Id & g_Main.cbxToolsWalletId.Text).AddKey(DAT_FAH_Team).Value = Me.lblTeamNumber.Text
+                If Me.txtEmail.Text.Length > 0 Then DAT.AddSection(Id & g_Main.cbxToolsWalletId.Text).AddKey(DAT_Email).Value = Me.txtEmail.Text
+                If Me.txtPasskey.Text.Length > 0 Then DAT.AddSection(Id & g_Main.cbxToolsWalletId.Text).AddKey(DAT_FAH_Passkey).Value = Me.txtPasskey.Text
 
                 'Create text from the INI, Encrypt, and Write/flush DAT text to file
                 SaveDat(Encrypt(DAT.SaveToString))
@@ -660,16 +693,16 @@
                 DAT = Nothing
 
                 'Make sure the INI key/value exists
-                If INI.GetSection(Id & g_Main.cbxWalletId.Text) Is Nothing OrElse INI.GetSection(Id & g_Main.cbxWalletId.Text).GetKey(INI_WalletName) Is Nothing Then
+                If INI.GetSection(Id & g_Main.cbxToolsWalletId.Text) Is Nothing OrElse INI.GetSection(Id & g_Main.cbxToolsWalletId.Text).GetKey(INI_WalletName) Is Nothing Then
                     'Save a wallet name, if there is none
-                    INI.AddSection(Id & g_Main.cbxWalletId.Text)
-                    INI.AddSection(Id & g_Main.cbxWalletId.Text).AddKey(INI_WalletName).Value = DefaultWalletName & g_Main.cbxWalletId.Text
+                    INI.AddSection(Id & g_Main.cbxToolsWalletId.Text)
+                    INI.AddSection(Id & g_Main.cbxToolsWalletId.Text).AddKey(INI_WalletName).Value = DefaultWalletName & g_Main.cbxToolsWalletId.Text
                 End If
 
                 INI.Save(IniFilePath)
                 Await Wait(100)
                 'Refresh the Wallet Names
-                g_Main.cbxWalletId_SelectedIndexChanged(Nothing, Nothing)
+                g_Main.cbxToolsWalletId_SelectedIndexChanged(Nothing, Nothing)
 
             Catch ex As Exception
                 Dim strMsg As String = "Error saving FAH settings to DAT file: " & ex.ToString
@@ -728,20 +761,21 @@
 
     Private Sub chkShowFAHCfg_CheckedChanged(sender As Object, e As EventArgs) Handles chkShowFAHCfg.CheckedChanged
         If Me.chkShowFAHCfg.Checked = True Then
-            If SystemInformation.WorkingArea.Width >= 1600 Then
-                Me.Width = 1600
-            Else
-                Me.Width = SystemInformation.WorkingArea.Width - 10
-            End If
+            'Try using the main window width as a guide for how wide to make this window when showing the before / after settings text
+            Me.Width = g_Main.Width
             'Show full window
             Me.SplitContainer2.Panel2Collapsed = False
-            Me.SplitContainer2.SplitterWidth = 2
-            Me.SplitContainer1.SplitterWidth = 2
         Else
             'Small
             Me.SplitContainer2.Panel2Collapsed = True
-            Me.Width = Me.gbxUsername.Left + Me.gbxUsername.Width + (2 * (SystemInformation.BorderSize.Width + SystemInformation.FrameBorderSize.Width)) + 18
+            'Try to make it the same spacing on the right side using another control's spacing (when scaled)
+            Me.Width = Me.btnCancel.Left + Me.btnCancel.Width + (Me.Width - Me.ClientSize.Width) + (Me.txtTelnetFAHCfg.Left * 2)
+            Me.SplitContainer2.SplitterDistance = Me.Width
         End If
+
+        'Try to move the form to be parent centered
+        Me.Top = g_Main.Top + (g_Main.Height \ 2) - (Me.Height \ 2)
+        Me.Left = g_Main.Left + (g_Main.Width \ 2) - (Me.Width \ 2)
     End Sub
 
     Private Sub btnReload_Click(sender As Object, e As EventArgs) Handles btnReload.Click
@@ -758,31 +792,34 @@
 
                 Else
                     'Ask for file location. Use a File Open Dialog to select the Config file
-                    Dim OpenDlg As New System.Windows.Forms.OpenFileDialog
-                    OpenDlg.Title = "Select FAH Config File"
-                    OpenDlg.DefaultExt = "xml"
-                    OpenDlg.Filter = "Config File (*.xml)|*.xml"
-                    OpenDlg.FileName = System.IO.Path.GetFileName(PATH_FAH_ALL_USER_CFG)
-                    OpenDlg.InitialDirectory = System.IO.Path.GetDirectoryName(PATH_FAH_ALL_USER_CFG)
-                    OpenDlg.CheckPathExists = True
-                    OpenDlg.CheckFileExists = True
-                    OpenDlg.RestoreDirectory = False
-                    OpenDlg.Multiselect = False
-                    OpenDlg.FilterIndex = 0
-                    If OpenDlg.ShowDialog(Me) = DialogResult.OK Then
-                        m_strFAHCfgPath = OpenDlg.FileName
-                    End If
-                    OpenDlg.Dispose()
+                    Using OpenDlg As New System.Windows.Forms.OpenFileDialog
+                        OpenDlg.Title = "Select FAH Config File"
+                        OpenDlg.DefaultExt = "xml"
+                        OpenDlg.Filter = "Config File (*.xml)|*.xml"
+                        OpenDlg.FileName = System.IO.Path.GetFileName(PATH_FAH_ALL_USER_CFG)
+                        OpenDlg.InitialDirectory = System.IO.Path.GetDirectoryName(PATH_FAH_ALL_USER_CFG)
+                        OpenDlg.CheckPathExists = True
+                        OpenDlg.CheckFileExists = True
+                        OpenDlg.RestoreDirectory = False
+                        OpenDlg.Multiselect = False
+                        OpenDlg.FilterIndex = 0
+                        If OpenDlg.ShowDialog(Me) = DialogResult.OK Then
+                            m_strFAHCfgPath = OpenDlg.FileName
+                        End If
+                    End Using
                 End If
 
                 If m_strFAHCfgPath.Length > 0 Then
                     Me.txtXmlBefore.Text = System.IO.File.ReadAllText(m_strFAHCfgPath)
                 Else
                     Me.txtXmlBefore.Text = "Could not find the FAH Config.xml"
+                    Me.txtCfgPath.Text = ""
                 End If
 
             Catch ex As Exception
-                MessageBox.Show("Could not find the FAH Config file: " & vbNewLine & m_strFAHCfgPath & vbNewLine & vbNewLine & ex.ToString)
+                Dim strMsg As String = "Could not find the FAH Config file: " & vbNewLine & m_strFAHCfgPath & vbNewLine & vbNewLine & ex.ToString
+                g_Main.Msg(strMsg)
+                MessageBox.Show(strMsg)
             End Try
         End If
 

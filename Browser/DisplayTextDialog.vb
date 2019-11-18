@@ -9,16 +9,22 @@
             Me.SplitContainer1.SplitterWidth = 2
             Me.SplitContainer1.Panel1Collapsed = True
 
+            'Set the new font scalar to resize the form (For display scaling percentages other than 100% / 96 DPI)
+            If g_sScaleFactor <> DefaultFontScalar Then
+                'Scale font. This will force the child controls to resize and scale fonts (as long as they are the default font)
+                Me.Font = New Font(Me.Font.FontFamily, Me.Font.Size * g_sScaleFactor, Me.Font.Style)
+            End If
+
             'Update the displayed data
-            If Me.cbxWalletId.Text = g_Main.cbxWalletId.Text Then
+            If Me.cbxWalletId.Text = g_Main.cbxToolsWalletId.Text Then
                 'Update the displayed data
                 cbxWalletId_SelectedIndexChanged(Nothing, Nothing)
             Else
                 'Change to the same wallet as the main interface
-                Me.cbxWalletId.Text = g_Main.cbxWalletId.Text
+                Me.cbxWalletId.Text = g_Main.cbxToolsWalletId.Text
             End If
 
-            'Start with the textboxes instead of the raw data that is hard to look at
+            'Start with the text boxes instead of the raw data that is hard to look at
             chkShowRawData_CheckedChanged(Nothing, Nothing)
             chkShowPW_CheckedChanged(Nothing, Nothing)
 
@@ -40,7 +46,7 @@
 
     Private Sub chkShowRawData_CheckedChanged(sender As Object, e As EventArgs) Handles chkShowRawData.CheckedChanged
         If Me.chkShowRawData.Checked = False Then
-            'Use the individual textboxes
+            'Use the individual text boxes
             Me.SplitContainer1.Panel1Collapsed = False
             Me.SplitContainer1.Panel2Collapsed = True
             Me.chkShowPW.Visible = True
@@ -79,7 +85,7 @@
 
     Private Sub btnSaveChanges_Click(sender As Object, e As EventArgs) Handles btnSaveChanges.Click
         If Me.chkShowRawData.Checked = False Then
-            'Use the individual textboxes
+            'Use the individual text boxes
             Dim DAT As New IniFile
             'Build the new DAT file
             If System.IO.File.Exists(DatFilePath) = True Then
@@ -110,7 +116,7 @@
             Me.txtExtremeOverclockingId.Text = Me.txtExtremeOverclockingId.Text.Trim
 
 
-            'Save textboxes with DAT data for the Wallet Id...
+            'Save text boxes with DAT data for the Wallet Id...
             DAT.AddSection(Id & Me.cbxWalletId.Text)
             If Me.txtFAHUsername.Text.Length <> 0 Then
                 DAT.AddSection(Id & Me.cbxWalletId.Text).AddKey(DAT_FAH_Username).Value = Me.txtFAHUsername.Text
@@ -171,7 +177,7 @@
 
             DAT = Nothing
         Else
-            'Large single textbox with the Raw INI data: Set a flag to reload the textboxes so they don't get out of sync
+            'Large single textbox with the Raw INI data: Set a flag to reload the text boxes so they don't get out of sync
             m_bRawDataSaved = True
         End If
 
@@ -205,7 +211,7 @@
                 Dim bFAH_Installed As Boolean = False
                 Dim strFAHConfigPath As String = ""
                 Const PATH_FAH_ALL_USER_CFG As String = "C:\ProgramData\FAHClient\config.xml"
-                Dim Path_FAH_CurrentUserCfg As String = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "FAHClient", "config.xml")
+                Dim Path_FAH_CurrentUserCfg As String = System.IO.Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), FAH_Client, "config.xml")
 
                 If System.IO.Directory.Exists(strBackupPath) = False Then
                     My.Computer.FileSystem.CreateDirectory(strBackupPath)
@@ -243,7 +249,7 @@
                 'ReadMe.txt: Write out a text file that says what to do to restore the files
                 strRestoreInfo = "Restore settings from the backup on " & Now.ToString("yyyy-MM-dd") & ":" & vbNewLine &
                     "================================================" & vbNewLine & vbNewLine &
-                    Prog_Name & " v" & My.Application.Info.Version.Major.ToString & " Settings Files:" & vbNewLine &
+                    g_strTitleEnd & " Settings Files:" & vbNewLine &
                     "-------------------------------------------------------------------------" & vbNewLine &
                     System.IO.Path.GetFileName(DatFilePath) & "  Copy to:  " & DatFilePath & vbNewLine &
                     System.IO.Path.GetFileName(IniFilePath) & "  Copy to:  " & IniFilePath &
@@ -337,7 +343,7 @@
                 Me.txtDisplayText.Select(Me.txtDisplayText.Text.Length, 0)
 
 
-                'Load textboxes with DAT data for the Wallet Id...
+                'Load text boxes with DAT data for the Wallet Id...
                 If DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_FAH_Username) IsNot Nothing Then
                     Me.txtFAHUsername.Text = DAT.GetSection(Id & Me.cbxWalletId.Text).GetKey(DAT_FAH_Username).GetValue()
                 End If

@@ -1,4 +1,6 @@
 server=1
+port=9911
 rpcuser=username
 rpcpassword=password
 rpcport=18512
+rpcallowip=127.0.0.1
